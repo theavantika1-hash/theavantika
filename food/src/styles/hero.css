@@ -1,0 +1,232 @@
+.restaurant-card {
+  background-color: var(--bg-container);
+  border-radius: 36px;
+  padding: 8px 40px 15px;
+  box-shadow: 0 25px 60px rgba(45, 63, 118, 0.15);
+  position: relative;
+  overflow: visible;
+  width: 100%;
+  aspect-ratio: 16 / 5.2;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  border: 1px solid rgba(45, 63, 118, 0.08);
+}
+
+.card-bg-video {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 0;
+  opacity: 1;
+  border-radius: 36px;
+  /* Shows the video in its original full colors */
+  pointer-events: none;
+  transition: opacity 1s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@media (max-width: 768px) {
+  .restaurant-card {
+    aspect-ratio: 1335 / 2400;
+    overflow: hidden;
+  }
+
+  .card-bg-video {
+    object-fit: fill;
+    transform: none;
+  }
+}
+
+.bg-transition-fade {
+  /* Dynamic fade effect triggered on state change */
+  animation: fadeInEffect 1s ease;
+}
+
+@keyframes fadeInEffect {
+  from {
+    opacity: 0.6;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Hero Section */
+.hero-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  position: relative;
+  margin: 5px 0;
+  min-height: 160px;
+}
+
+/* Background Big Text */
+.bg-text-container {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 100%;
+  text-align: center;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.bg-text {
+  font-family: var(--display-font);
+  font-size: clamp(80px, 15vw, 230px);
+  color: #2D3F76;
+  opacity: 0.08;
+  line-height: 0.8;
+  text-transform: uppercase;
+  letter-spacing: -2px;
+  white-space: nowrap;
+  user-select: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-shadow: 0 10px 30px rgba(45, 63, 118, 0.08);
+}
+
+.bg-text span {
+  display: block;
+}
+
+/* Food Image Container */
+.food-container {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  max-width: 480px;
+  aspect-ratio: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  pointer-events: none;
+  filter: drop-shadow(0 25px 45px rgba(45, 63, 118, 0.2));
+  margin-top: -15px;
+}
+
+.food-image {
+  width: 110%;
+  height: 110%;
+  object-fit: contain;
+  mix-blend-mode: screen;
+  animation: float-animation 6s ease-in-out infinite;
+  transform-origin: center;
+  transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.4s ease;
+}
+
+@keyframes float-animation {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-10px) rotate(1.5deg);
+  }
+}
+
+/* Bottom Controls & Info */
+.hero-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  z-index: 10;
+  margin-top: 15px;
+}
+
+.slogan-section {
+  max-width: 340px;
+  text-align: left;
+}
+
+.slogan-section p {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+.slider-controls {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.control-btn {
+  background-color: rgba(45, 63, 118, 0.08);
+  border: 1px solid rgba(45, 63, 118, 0.1);
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #2D3F76;
+  transition: var(--transition-smooth);
+}
+
+.control-btn:hover {
+  background-color: #2D3F76;
+  color: #ffffff;
+  transform: scale(1.05);
+}
+
+.slider-category {
+  font-family: var(--primary-font);
+  font-weight: 500;
+  font-size: 18px;
+  color: var(--text-light);
+  min-width: 120px;
+  text-align: center;
+}
+
+.action-section {
+  display: flex;
+  gap: 12px;
+}
+
+.btn-add-to-cart {
+  background: rgba(45, 63, 118, 0.08);
+  border: 1px solid rgba(45, 63, 118, 0.1);
+  color: #2D3F76;
+  padding: 10px 24px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  transition: var(--transition-smooth);
+}
+
+.btn-add-to-cart:hover {
+  background: #2D3F76;
+  color: #ffffff;
+}
+
+.btn-wishlist {
+  background: rgba(45, 63, 118, 0.08);
+  border: 1px solid rgba(45, 63, 118, 0.1);
+  color: #2D3F76;
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: var(--transition-smooth);
+}
+
+.btn-wishlist:hover {
+  background: #2D3F76;
+  color: #ffffff;
+}

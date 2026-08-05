@@ -1,0 +1,59 @@
+:root {
+  --primary-font: 'PoppinsCustom', sans-serif;
+  --display-font: 'Lilita One', cursive;
+
+  /* Colors */
+  --bg-page: #ffffff;
+  /* White page background */
+  --bg-container: #4CA687;
+  /* Card background */
+  --text-light: #2D3F76;
+  /* Dark slate blue text */
+  --text-muted: rgba(45, 63, 118, 0.7);
+
+  --transition-smooth: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  font-family: var(--primary-font);
+  background-color: var(--bg-page);
+  color: var(--text-light);
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow-x: hidden;
+  padding: 20px;
+}
+
+#root {
+  width: 100%;
+  max-width: 100%;
+  margin: 0 auto;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-container);
+}
+
+::-webkit-scrollbar-thumb {
+  background: #4CA687;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #4CA687;
+}

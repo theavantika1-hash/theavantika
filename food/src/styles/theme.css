@@ -1,0 +1,44 @@
+/* Dark Theme Overrides */
+body.dark-theme {
+  --bg-page: #101913 !important;
+  --bg-container: #0d120e !important;
+  --text-light: #ffffff !important;
+  --text-muted: #829a87 !important;
+}
+
+body.dark-theme .restaurant-card {
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.6) !important;
+  border-color: rgba(255,255,255,0.05) !important;
+}
+
+body.dark-theme .all-products-page-overlay,
+body.dark-theme .all-products-page-container,
+body.dark-theme .address-sheet-panel {
+  background-color: #0c120d !important;
+  color: #ffffff !important;
+}
+
+body.dark-theme .dropdown-username,
+body.dark-theme .all-products-title,
+body.dark-theme .food-card-title {
+  color: #e5ffe7 !important;
+}
+
+body.dark-theme .user-dropdown-menu {
+  background-color: #121a14 !important;
+  border-color: rgba(255,255,255,0.1) !important;
+  box-shadow: 0 15px 45px rgba(0, 0, 0, 0.4) !important;
+}
+
+body.dark-theme .dropdown-section-title {
+  color: rgba(255, 255, 255, 0.45);
+}
+
+body.dark-theme .dropdown-item {
+  color: rgba(255, 255, 255, 0.8) !important;
+}
+
+body.dark-theme .dropdown-item:hover {
+  background-color: rgba(76, 166, 135, 0.15) !important;
+  color: #5ec09e !important;
+}

@@ -1,0 +1,166 @@
+/* Header / Navbar */
+.nav-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  padding: 0px 36px 12px;
+  border-radius: 100px;
+  border: none;
+  z-index: 10004;
+}
+
+.logo {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  transition: var(--transition-smooth);
+}
+
+.logo-img {
+  height: 110px;
+  width: auto;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.45));
+  margin-top: -15px;
+  margin-bottom: -15px;
+}
+
+.logo:hover {
+  transform: scale(1.05);
+}
+
+.nav-links {
+  display: flex;
+  gap: 36px;
+  list-style: none;
+}
+
+.nav-links a {
+  color: rgba(45, 63, 118, 0.6);
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  transition: var(--transition-smooth);
+}
+
+.nav-links a:hover,
+.nav-links a.active {
+  color: var(--text-light);
+}
+
+.nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.icon-btn {
+  background: none;
+  border: none;
+  color: #ffffff;
+  filter: drop-shadow(0 1px 4px rgba(0, 0, 0, 0.5));
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: var(--transition-smooth);
+}
+
+.icon-btn:hover {
+  transform: scale(1.1);
+  opacity: 0.9;
+}
+
+/* Desktop nav - visible on large screens */
+.nav-actions-desktop {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+/* Mobile 3-dot nav - hidden on desktop */
+.nav-actions-mobile {
+  display: none;
+  position: relative;
+}
+
+/* 3-dot button */
+.three-dot-btn {
+  background: rgba(255, 255, 255, 0.15) !important;
+  border: 1px solid rgba(255, 255, 255, 0.3) !important;
+  border-radius: 8px !important;
+  padding: 6px 8px !important;
+  backdrop-filter: blur(8px);
+}
+
+/* Dropdown */
+.mobile-dropdown {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  background: rgba(20, 25, 50, 0.92);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 14px;
+  padding: 8px;
+  min-width: 180px;
+  z-index: 99999;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+  animation: dropdownFadeIn 0.2s ease;
+}
+
+@keyframes dropdownFadeIn {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.mobile-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: none;
+  border: none;
+  color: #ffffff;
+  padding: 10px 14px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  width: 100%;
+  text-align: left;
+  transition: background 0.2s ease;
+}
+
+.mobile-dropdown-item:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+/* Responsive - switch to mobile 3-dot */
+@media (max-width: 768px) {
+  .nav-actions-desktop {
+    display: none;
+  }
+
+  .nav-actions-mobile {
+    display: flex;
+  }
+
+  /* Location badge bahar hide karo - sirf 3-dot menu mein dikhega */
+  .location-badge {
+    display: none !important;
+  }
+
+  /* Dining mode badge bahar hide karo - sirf 3-dot menu mein dikhega */
+  .dining-mode-badge {
+    display: none !important;
+  }
+}
