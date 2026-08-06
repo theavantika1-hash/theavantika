@@ -47,7 +47,7 @@ const formatBackendCartItems = (backendCart) => {
   })
 }
 
-export const useCart = (isLoggedIn, setShowAuthModal, setAuthMode) => {
+export const useCart = (isLoggedIn, setShowAuthModal, setAuthMode, diningMode) => {
   const [cart, setCart] = useState([])
   const [showCartDrawer, setShowCartDrawer] = useState(false)
   const [checkoutStep, setCheckoutStep] = useState('cart') // 'cart', 'payment', 'success'
@@ -61,8 +61,13 @@ export const useCart = (isLoggedIn, setShowAuthModal, setAuthMode) => {
   const [appliedDiscount, setAppliedDiscount] = useState(0)
   const [couponMsg, setCouponMsg] = useState('')
 
-  // Load user cart from backend API on mount & auth change
+  // Load user cart from backend API on mount & auth / diningMode change
   useEffect(() => {
+    if (diningMode === 'delivery' && !isLoggedIn) {
+      setCart([])
+      return
+    }
+
     const userId = getEffectiveUserId()
     fetch(`http://localhost:45000/api/cart/${userId}`)
       .then(res => res.json())
@@ -73,10 +78,11 @@ export const useCart = (isLoggedIn, setShowAuthModal, setAuthMode) => {
         }
       })
       .catch(err => console.log('Backend fetch cart info:', err))
-  }, [isLoggedIn])
+  }, [isLoggedIn, diningMode])
 
   const addToCart = async (product, quantity = 1, customizations = '') => {
-    if (!isLoggedIn) {
+    const isGuestFlow = diningMode === 'dine-in' || diningMode === 'pickup'
+    if (!isLoggedIn && !isGuestFlow) {
       setShowAuthModal(true)
       setAuthMode('login')
       return

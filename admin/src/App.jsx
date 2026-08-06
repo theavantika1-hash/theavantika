@@ -29,7 +29,8 @@ import {
   FiX,
   FiUpload,
   FiPercent,
-  FiImage
+  FiImage,
+  FiPackage
 } from 'react-icons/fi'
 import { MdOutlineDirectionsBike } from 'react-icons/md'
 import { BiSolidFoodMenu } from "react-icons/bi";
@@ -46,6 +47,7 @@ import AnalyticsPage from './AnalyticsPage'
 import ReviewsPage from './ReviewsPage'
 import MenuPage from './MenuPage'
 import WalletPage from './WalletPage'
+import InventoryPage from './InventoryPage'
 
 function App() {
   // ==========================================
@@ -456,6 +458,10 @@ function App() {
                   <BiSolidFoodMenu className="tab-icon" />
                   <span className="tab-label">Edit Menu</span>
                 </button>
+                <button className={`sidebar-tab ${activeTab === 'inventory' ? 'active' : ''}`} onClick={() => setActiveTab('inventory')} title="Inventory">
+                  <FiPackage className="tab-icon" />
+                  <span className="tab-label">Inventory</span>
+                </button>
               </div>
               <div className="sidebar-bottom">
                 <button className="sidebar-tab" onClick={() => { setIsLoggedIn(false); showNotification("Logging out... Session ended.", 'warning'); }} title="Log out">
@@ -603,6 +609,11 @@ function App() {
                   <HeroBannersPage
                     showNotification={showNotification}
                   />
+                )}
+
+                {/* Tab 13: Inventory Management */}
+                {activeTab === 'inventory' && (
+                  <InventoryPage />
                 )}
 
               </main>

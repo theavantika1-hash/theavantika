@@ -99,6 +99,11 @@ app.use('/api/coupons', couponRoutes);
 const deliveryBoyRoutes = require('./src/routes/deliveryBoyRoutes');
 app.use('/api/delivery-boy', deliveryBoyRoutes);
 
+// Inventory Routes
+const inventoryRoutes = require('./src/routes/inventoryRoutes');
+app.use('/api/inventory', inventoryRoutes);
+
+
 
 
 

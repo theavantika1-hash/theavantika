@@ -22,6 +22,10 @@ import Footer from './components/Footer'
 import FloatingMenuButton from './components/FloatingMenuButton'
 import './styles/customization-modal.css'
 import './styles/floating-menu.css'
+import { handleDiningModeSelection } from './utils/diningModeHelper'
+
+// Clear guest id on script load so that reload starts with a fresh guest ID and empty cart
+localStorage.removeItem('avantika_guest_id')
 
 
 
@@ -67,40 +71,7 @@ function App() {
   const [scanSuccess, setScanSuccess] = useState(false)
 
   const handleModeSelect = (mode) => {
-    if (mode === 'delivery') {
-      setDiningMode(mode)
-      setTempLocation(userLocation)
-      setShowLocationPopup(true) // Open location popup immediately for delivery
-      return
-    }
-    if (mode === 'pickup') {
-      setDiningMode(mode)
-      return
-    }
-
-    // Only show scanner for Dine-In
-    setSelectedMode(mode)
-    setShowScanner(true)
-    setScanProgress(0)
-    setScanSuccess(false)
-
-    let progress = 0
-    const interval = setInterval(() => {
-      progress += 10
-      if (progress >= 100) {
-        progress = 100
-        clearInterval(interval)
-        setScanProgress(100)
-        setScanSuccess(true)
-        setTimeout(() => {
-          setDiningMode(mode)
-          setShowScanner(false)
-          setSelectedMode(null)
-        }, 1500)
-      } else {
-        setScanProgress(progress)
-      }
-    }, 200)
+    handleDiningModeSelection(mode, setDiningMode, setShowAllProductsPage)
   }
 
   // Dynamic Foods State
@@ -199,7 +170,7 @@ function App() {
     updateCartQuantity,
     removeFromCart,
     clearCart
-  } = useCart(isLoggedIn, setShowAuthModal, setAuthMode)
+  } = useCart(isLoggedIn, setShowAuthModal, setAuthMode, diningMode)
   const [selectedProductForCustomization, setSelectedProductForCustomization] = useState(null)
   const [showAddressSheet, setShowAddressSheet] = useState(false)
   const [showAddAddressSheet, setShowAddAddressSheet] = useState(false)
@@ -223,6 +194,10 @@ function App() {
   const [upiAddress, setUpiAddress] = useState('')
   const [showQrModal, setShowQrModal] = useState(false)
   const [placedOrderId, setPlacedOrderId] = useState('')
+
+  const [guestName, setGuestName] = useState('')
+  const [guestPhone, setGuestPhone] = useState('')
+  const [guestEmail, setGuestEmail] = useState('')
 
   const getEffectiveUserId = () => {
     let savedUser = null
@@ -343,17 +318,19 @@ function App() {
     }
 
     const activeAddrObj = savedAddresses.find(a => (a.id === selectedAddressId || a._id === selectedAddressId))
-    const custName = activeAddrObj?.name || (loggedInUser?.name || loggedInUser?.user_name || 'Valued Patron')
-    const custPhone = activeAddrObj?.phone || (loggedInUser?.phone || loggedInUser?.phone_number || profileMobile || '9876543210')
+    const isGuestFlow = diningMode === 'dine-in' || diningMode === 'pickup'
+    const custName = isGuestFlow ? (guestName || 'Valued Patron') : (activeAddrObj?.name || (loggedInUser?.name || loggedInUser?.user_name || 'Valued Patron'))
+    const custPhone = isGuestFlow ? (guestPhone || '9876543210') : (activeAddrObj?.phone || (loggedInUser?.phone || loggedInUser?.phone_number || profileMobile || '9876543210'))
+    const custEmail = isGuestFlow ? (guestEmail || '') : (loggedInUser?.email || profileEmail || '')
 
     const orderPayload = {
       orderId: orderIdVal,
       userId,
       customerName: custName,
       phoneNumber: custPhone,
-      customerEmail: loggedInUser?.email || profileEmail || '',
-      deliveryAddress: userLocation || 'Dine-In Restaurant',
-      diningType: diningMode === 'dine-in' ? 'Dine In' : (diningMode === 'takeaway' ? 'Takeaway' : 'Delivery'),
+      customerEmail: custEmail,
+      deliveryAddress: userLocation || (diningMode === 'dine-in' ? 'Dine-In Table' : 'Pickup Store'),
+      diningType: diningMode === 'dine-in' ? 'Dine In' : (diningMode === 'takeaway' || diningMode === 'pickup' ? 'Takeaway' : 'Delivery'),
       orderedItems: cart.map(item => ({
         foodId: item.id || item._id || item.name,
         name: item.name,
@@ -888,6 +865,12 @@ function App() {
         allFoods={allFoods}
         recommendedFoods={recommendedFoods}
         spotlightFoods={spotlightFoods}
+        guestName={guestName}
+        setGuestName={setGuestName}
+        guestPhone={guestPhone}
+        setGuestPhone={setGuestPhone}
+        guestEmail={guestEmail}
+        setGuestEmail={setGuestEmail}
       />
       {/* ===== MOBILE FILTER PANEL (Zomato Style) ===== */}
       {showMobileFilterPanel && (
@@ -1274,7 +1257,7 @@ function App() {
           to { transform: translateY(0); }
         }
       `}</style>
-      <div className={`sticky-bottom-cart-bar ${cart.length > 0 && !showCartDrawer ? 'visible' : ''}`}>
+      <div className={`sticky-bottom-cart-bar ${cart.length > 0 && !showCartDrawer && diningMode ? 'visible' : ''}`}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           {/* Overlapping circular thumbnails of the first 3 items */}
           <div style={{ display: 'flex', alignItems: 'center' }}>
@@ -1719,15 +1702,17 @@ function App() {
       />
 
       {/* Floating Menu Button (Zomato Style) */}
-      <FloatingMenuButton
-        allFoods={allFoods}
-        recommendedFoods={recommendedFoods}
-        spotlightFoods={spotlightFoods}
-        selectedCategory={selectedCatalogueCategory}
-        onSelectCategory={setSelectedCatalogueCategory}
-        setShowAllProductsPage={setShowAllProductsPage}
-        cartVisible={cart.length > 0 && !showCartDrawer}
-      />
+      {diningMode && (
+        <FloatingMenuButton
+          allFoods={allFoods}
+          recommendedFoods={recommendedFoods}
+          spotlightFoods={spotlightFoods}
+          selectedCategory={selectedCatalogueCategory}
+          onSelectCategory={setSelectedCatalogueCategory}
+          setShowAllProductsPage={setShowAllProductsPage}
+          cartVisible={cart.length > 0 && !showCartDrawer}
+        />
+      )}
 
       {/* Product Customization bottom sheet modal */}
       {selectedProductForCustomization && (

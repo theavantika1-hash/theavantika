@@ -43,7 +43,13 @@ export const CartDrawer = ({
   addToCart,
   allFoods,
   recommendedFoods,
-  spotlightFoods
+  spotlightFoods,
+  guestName,
+  setGuestName,
+  guestPhone,
+  setGuestPhone,
+  guestEmail,
+  setGuestEmail
 }) => {
   if (!showCartDrawer) return null
 
@@ -340,7 +346,7 @@ export const CartDrawer = ({
                         setCheckoutStep('payment');
                       }
                     } else {
-                      setCheckoutStep('payment');
+                      setCheckoutStep('guest-info');
                     }
                   }}
                 >
@@ -350,6 +356,82 @@ export const CartDrawer = ({
                 </button>
               </>
             )}
+          </div>
+        )}
+
+        {checkoutStep === 'guest-info' && (
+          <div className="cart-drawer-body">
+            <div style={{ padding: '10px 4px 30px 4px' }}>
+              <h3 style={{ fontSize: '16px', fontWeight: '800', marginBottom: '8px', color: 'var(--text-dark)' }}>Guest Details</h3>
+              <p style={{ fontSize: '12px', color: 'rgba(45, 63, 118, 0.6)', marginBottom: '20px' }}>Provide your contact information to proceed with your {diningMode === 'dine-in' ? 'Dine-In' : 'Takeaway'} order.</p>
+              
+              <form onSubmit={(e) => {
+                e.preventDefault();
+                if (!guestName.trim() || !guestPhone.trim() || !guestEmail.trim()) {
+                  alert('Please fill in all fields.');
+                  return;
+                }
+                if (!/^\d{10}$/.test(guestPhone.trim())) {
+                  alert('Please enter a valid 10-digit phone number.');
+                  return;
+                }
+                setCheckoutStep('payment');
+              }} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <label style={{ fontSize: '11px', fontWeight: '700', color: 'rgba(45, 63, 118, 0.6)' }}>Full Name *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Enter your name"
+                    value={guestName}
+                    onChange={(e) => setGuestName(e.target.value)}
+                    style={{ padding: '10px 14px', borderRadius: '8px', border: '1px solid rgba(45, 63, 118, 0.15)', fontSize: '13px', outline: 'none' }}
+                  />
+                </div>
+                
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <label style={{ fontSize: '11px', fontWeight: '700', color: 'rgba(45, 63, 118, 0.6)' }}>Phone Number *</label>
+                  <input
+                    type="tel"
+                    required
+                    pattern="[0-9]{10}"
+                    maxLength={10}
+                    placeholder="10-digit mobile number"
+                    value={guestPhone}
+                    onChange={(e) => setGuestPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                    style={{ padding: '10px 14px', borderRadius: '8px', border: '1px solid rgba(45, 63, 118, 0.15)', fontSize: '13px', outline: 'none' }}
+                  />
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <label style={{ fontSize: '11px', fontWeight: '700', color: 'rgba(45, 63, 118, 0.6)' }}>Email Address *</label>
+                  <input
+                    type="email"
+                    required
+                    placeholder="name@example.com"
+                    value={guestEmail}
+                    onChange={(e) => setGuestEmail(e.target.value)}
+                    style={{ padding: '10px 14px', borderRadius: '8px', border: '1px solid rgba(45, 63, 118, 0.15)', fontSize: '13px', outline: 'none' }}
+                  />
+                </div>
+
+                <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setCheckoutStep('cart')}
+                    style={{ flex: 1, padding: '12px', borderRadius: '12px', border: '1px solid rgba(45, 63, 118, 0.15)', background: '#ffffff', color: 'var(--text-dark)', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}
+                  >
+                    Back
+                  </button>
+                  <button
+                    type="submit"
+                    style={{ flex: 2, padding: '12px', borderRadius: '12px', border: 'none', background: '#4CA687', color: '#ffffff', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}
+                  >
+                    Next: Payment
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
         )}
 
@@ -557,8 +639,14 @@ export const CartDrawer = ({
                 {paymentLoading ? 'Processing Order...' : (paymentMode === '' ? 'Select Payment Method' : 'Place Order')}
               </button>
 
-              <button className="cart-back-btn" onClick={() => setCheckoutStep('cart')}>
-                ← Back to Cart
+              <button className="cart-back-btn" onClick={() => {
+                if (diningMode === 'dine-in' || diningMode === 'pickup') {
+                  setCheckoutStep('guest-info');
+                } else {
+                  setCheckoutStep('cart');
+                }
+              }}>
+                ← Back
               </button>
             </div>
           </div>

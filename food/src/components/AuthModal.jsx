@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState } from 'react'
 
 export const AuthModal = ({
   showAuthModal,
@@ -18,6 +18,8 @@ export const AuthModal = ({
   setAuthError,
   authLoading
 }) => {
+  const [showPassword, setShowPassword] = useState(false)
+
   if (!showAuthModal) return null
 
   const switchMode = (mode) => {
@@ -82,13 +84,35 @@ export const AuthModal = ({
           </div>
           <div className="form-group">
             <label>Password</label>
-            <input
-              type="password"
-              placeholder="Enter password..."
-              value={authPassword}
-              onChange={(e) => setAuthPassword(e.target.value)}
-              required
-            />
+            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+              <input
+                type={showPassword ? "text" : "password"}
+                placeholder="Enter password..."
+                value={authPassword}
+                onChange={(e) => setAuthPassword(e.target.value)}
+                required
+                style={{ width: '100%', paddingRight: '45px' }}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                style={{
+                  position: 'absolute',
+                  right: '12px',
+                  background: 'none',
+                  border: 'none',
+                  color: '#666',
+                  cursor: 'pointer',
+                  fontSize: '11px',
+                  fontWeight: '700',
+                  outline: 'none',
+                  textTransform: 'uppercase',
+                  userSelect: 'none'
+                }}
+              >
+                {showPassword ? "Hide" : "Show"}
+              </button>
+            </div>
           </div>
 
           <button type="submit" className="auth-submit-btn" disabled={authLoading}>

@@ -2,6 +2,8 @@ const Order = require("../models/orderSchema");
 const Cart = require("../models/cartModel");
 const User = require("../models/userModel");
 const mongoose = require("mongoose");
+const Recipe = require("../models/Recipe");
+const Inventory = require("../models/Inventory");
 
 /**
  * Create a new order in MongoDB database
@@ -100,6 +102,25 @@ const createOrder = async (orderData) => {
     });
 
     const savedOrder = await newOrder.save();
+
+    // Auto deduct inventory stock based on recipe mapping
+    try {
+        for (const item of formattedItems) {
+            const recipe = await Recipe.findOne({ foodName: item.name.trim() });
+            if (recipe && Array.isArray(recipe.ingredients)) {
+                for (const ingredient of recipe.ingredients) {
+                    const invItem = await Inventory.findOne({ name: ingredient.inventoryName });
+                    if (invItem) {
+                        const amountToUse = ingredient.qtyNeeded * item.quantity;
+                        invItem.usedQty = Math.min(invItem.totalQty, invItem.usedQty + amountToUse);
+                        await invItem.save();
+                    }
+                }
+            }
+        }
+    } catch (invErr) {
+        console.log("Auto inventory deduction failed on order placement:", invErr.message);
+    }
 
     // Auto clear cart in database for user
     try {
