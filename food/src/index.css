@@ -28,9 +28,11 @@ body {
   color: var(--text-light);
   min-height: 100vh;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   overflow-x: hidden;
+  overflow-y: auto !important;
   padding: 20px;
 }
 
@@ -42,18 +44,20 @@ body {
 
 /* Custom Scrollbar */
 ::-webkit-scrollbar {
-  width: 8px;
+  width: 12px;
+  display: block !important;
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--bg-container);
+  background: rgba(45, 63, 118, 0.05);
 }
 
 ::-webkit-scrollbar-thumb {
   background: #4CA687;
-  border-radius: 4px;
+  border-radius: 6px;
+  border: 3px solid var(--bg-page);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #4CA687;
+  background: #2D3F76;
 }
