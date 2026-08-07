@@ -40,20 +40,28 @@ body {
   margin: 0 auto;
 }
 
-/* Custom Scrollbar */
+/* Premium Modern Scrollbar */
 ::-webkit-scrollbar {
-  width: 8px;
+  width: 10px;
+  height: 10px;
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--bg-container);
+  background: rgba(76, 166, 135, 0.1); /* Translucent container color */
+  border-radius: 100px;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #4CA687;
-  border-radius: 4px;
+  background: var(--bg-container); /* Green gradient/brand color */
+  border-radius: 100px;
+  border: 2px solid var(--bg-page); /* Inner spacing */
+  transition: var(--transition-smooth);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #4CA687;
+  background: var(--text-light); /* Dark slate blue on hover for feedback */
+}
+
+::-webkit-scrollbar-thumb:active {
+  background: #1e2c56; /* Even darker blue when dragged */
 }
