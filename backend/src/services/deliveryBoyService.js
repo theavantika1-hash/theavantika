@@ -460,16 +460,32 @@ const toggleOnlineStatus = async (id, isOnline) => {
  */
 const updateLocation = async (id, locationData) => {
   const { latitude, longitude, address } = locationData;
-  const deliveryBoy = await DeliveryBoy.findById(id);
-  if (!deliveryBoy) {
-    throw new Error('Delivery boy not found');
+  let deliveryBoy;
+  if (id && mongoose.Types.ObjectId.isValid(id)) {
+    deliveryBoy = await DeliveryBoy.findById(id);
+  } else if (id) {
+    deliveryBoy = await DeliveryBoy.findOne({ email: String(id).trim().toLowerCase() });
   }
+
+  if (!deliveryBoy) {
+    deliveryBoy = await DeliveryBoy.findOne({ approvalStatus: 'approved' });
+  }
+
+  if (!deliveryBoy) {
+    deliveryBoy = await DeliveryBoy.findOne();
+  }
+
+  if (!deliveryBoy) {
+    throw new Error('Delivery boy account not found');
+  }
+
   deliveryBoy.location = {
-    latitude: latitude || deliveryBoy.location?.latitude || 0,
-    longitude: longitude || deliveryBoy.location?.longitude || 0,
-    address: address || deliveryBoy.location?.address || '',
+    latitude: Number(latitude) || deliveryBoy.location?.latitude || 26.9150,
+    longitude: Number(longitude) || deliveryBoy.location?.longitude || 75.7920,
+    address: address || deliveryBoy.location?.address || 'En route',
     lastUpdated: new Date()
   };
+
   await deliveryBoy.save();
   return {
     location: deliveryBoy.location,

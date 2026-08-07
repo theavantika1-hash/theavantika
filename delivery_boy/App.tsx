@@ -68,6 +68,15 @@ function App() {
   });
   const [regDetails, setRegDetails] = useState<{ fullName: string; phone: string; email: string } | null>(null);
 
+  // Automatic App Permissions Request (Location & Post Notifications)
+  React.useEffect(() => {
+    import('./src/utils/permissionHelper').then(({ requestAppPermissions }) => {
+      requestAppPermissions().then((result) => {
+        console.log('[App Permissions] Granted status:', result);
+      });
+    });
+  }, []);
+
   // Security Guard: Prevent unapproved users from accessing home / dashboard
   React.useEffect(() => {
     if (currentScreen === 'home' && userEmail) {

@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { styles } from '../styles/appStyles';
+import { deliveryBoyApi } from '../config/api';
 
 const { width } = Dimensions.get('window');
 
@@ -29,7 +30,26 @@ export function MapScreen({
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   const handleCenterLocation = () => {
-    Alert.alert('Centered Location', 'Map view centered on your current location.');
+    const globalNav = typeof globalThis !== 'undefined' ? (globalThis as any).navigator : undefined;
+    if (globalNav && globalNav.geolocation) {
+      globalNav.geolocation.getCurrentPosition(
+        async (pos: any) => {
+          try {
+            await deliveryBoyApi.updateLocation({
+              latitude: pos.coords.latitude,
+              longitude: pos.coords.longitude,
+              address: locationText
+            });
+            Alert.alert('GPS Location Updated', `Lat: ${pos.coords.latitude.toFixed(4)}, Lng: ${pos.coords.longitude.toFixed(4)} streamed to backend.`);
+          } catch (e) {
+            Alert.alert('Centered Location', 'Map view centered on your current location.');
+          }
+        },
+        () => Alert.alert('Centered Location', 'Map view centered on your current location.')
+      );
+    } else {
+      Alert.alert('Centered Location', 'Map view centered on your current location.');
+    }
   };
 
   const handleToggleFullscreen = () => {

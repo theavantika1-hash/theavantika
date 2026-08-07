@@ -94,9 +94,28 @@ const updateOrderStatus = async (req, res) => {
     }
 };
 
+// Get tracking info for an order (restaurant, user, delivery boy live location)
+const getOrderTracking = async (req, res) => {
+    try {
+        const { orderId } = req.params;
+        const trackingData = await orderService.getOrderTrackingInfo(orderId);
+        return res.status(200).json({
+            success: true,
+            data: trackingData
+        });
+    } catch (error) {
+        return res.status(400).json({
+            success: false,
+            message: error.message || "Failed to fetch order tracking info"
+        });
+    }
+};
+
 module.exports = {
     placeOrder,
     getAllOrders,
     getUserOrders,
-    updateOrderStatus
+    updateOrderStatus,
+    getOrderTracking
 };
+

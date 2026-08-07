@@ -31,7 +31,8 @@ export const ProfilePage = ({
   filterVeg,
   setFilterVeg,
   darkMode,
-  setDarkMode
+  setDarkMode,
+  onTrackOrder
 }) => {
   if (!showProfilePage) return null
 
@@ -464,9 +465,32 @@ export const ProfilePage = ({
                           </span>
                         </div>
                         <p style={{ margin: '0 0 10px 0', fontSize: '13px', color: '#2d3f76', fontWeight: '600', lineHeight: '1.4' }}>{order.items}</p>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px', marginTop: '10px' }}>
                           <span style={{ color: 'rgba(45,63,118,0.5)', fontWeight: '600' }}>{order.date}</span>
-                          <span style={{ fontWeight: '800', color: '#2D3F76', fontSize: '14px' }}>{order.total}</span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span style={{ fontWeight: '800', color: '#2D3F76', fontSize: '14px' }}>{order.total}</span>
+                            <button
+                              onClick={() => {
+                                setShowProfilePage(false);
+                                if (onTrackOrder) onTrackOrder({ orderId: order.id || order.orderId, orderStatus: order.status || 'Preparing' });
+                              }}
+                              style={{
+                                background: '#4CA687',
+                                color: '#ffffff',
+                                border: 'none',
+                                padding: '6px 12px',
+                                borderRadius: '8px',
+                                fontSize: '11px',
+                                fontWeight: '800',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '4px'
+                              }}
+                            >
+                              🗺️ Track
+                            </button>
+                          </div>
                         </div>
                       </div>
                     ))

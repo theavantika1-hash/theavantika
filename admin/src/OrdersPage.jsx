@@ -1,6 +1,6 @@
 import React from 'react'
 
-function OrdersPage({ orders = [], setSelectedOrder, setStatusChangeOrder }) {
+function OrdersPage({ orders = [], setSelectedOrder, setStatusChangeOrder, setTrackingOrder }) {
   return (
     <div className="grid-card" style={{ flex: 1, gap: '16px' }}>
       <div className="flex-header">
@@ -19,7 +19,7 @@ function OrdersPage({ orders = [], setSelectedOrder, setStatusChangeOrder }) {
               <th>Items</th>
               <th>Total</th>
               <th>Status</th>
-              <th style={{ minWidth: '220px', textAlign: 'center', color: 'var(--text-primary)', fontWeight: '800' }}>Actions</th>
+              <th style={{ minWidth: '280px', textAlign: 'center', color: 'var(--text-primary)', fontWeight: '800' }}>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -57,8 +57,9 @@ function OrdersPage({ orders = [], setSelectedOrder, setStatusChangeOrder }) {
                     </span>
                   </td>
                   <td style={{ textAlign: 'center', display: 'flex', gap: '8px', justifyContent: 'center', alignItems: 'center', height: '100%', minHeight: '45px' }}>
-                    <button className="btn btn-primary" style={{ padding: '6px 12px', fontSize: '11px', background: 'var(--accent-color)', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '800' }} onClick={() => setSelectedOrder(order)}>Inspect</button>
-                    <button className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: '11px', background: '#3b82f6', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '800' }} onClick={() => setStatusChangeOrder(order)}>Change Status</button>
+                    <button className="btn btn-primary" style={{ padding: '6px 10px', fontSize: '11px', background: 'var(--accent-color)', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '800' }} onClick={() => setSelectedOrder(order)}>Inspect</button>
+                    <button className="btn btn-secondary" style={{ padding: '6px 10px', fontSize: '11px', background: '#3b82f6', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '800' }} onClick={() => setStatusChangeOrder(order)}>Change Status</button>
+                    <button className="btn btn-secondary" style={{ padding: '6px 10px', fontSize: '11px', background: '#10b981', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '4px' }} onClick={() => setTrackingOrder && setTrackingOrder(order)}>🗺️ Track Live</button>
                   </td>
                 </tr>
               ))

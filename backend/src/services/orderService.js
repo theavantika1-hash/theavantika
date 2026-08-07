@@ -169,9 +169,82 @@ const updateOrderStatus = async (orderId, orderStatus, paymentStatus) => {
     );
 };
 
+// Get order tracking details with restaurant, user, and delivery boy locations
+const getOrderTrackingInfo = async (orderId) => {
+    const order = await Order.findOne({
+        $or: [
+            { orderId: orderId },
+            { _id: mongoose.Types.ObjectId.isValid(orderId) ? orderId : null }
+        ]
+    });
+
+    if (!order) {
+        throw new Error("Order not found");
+    }
+
+    // Default Restaurant Coordinates (Avantika Central Kitchen / Restaurant, Jaipur HQ)
+    const restaurantLocation = {
+        name: "Avantika Restaurant",
+        address: "MI Road, City Centre, Jaipur, Rajasthan",
+        latitude: 26.9124,
+        longitude: 75.7873,
+        phone: "+91 98290 12345"
+    };
+
+    // User / Delivery Address & Coordinates
+    let userLocation = {
+        address: typeof order.deliveryAddress === 'string' ? order.deliveryAddress : (order.deliveryAddress?.address || "Customer Delivery Address"),
+        latitude: 26.9220,
+        longitude: 75.8000
+    };
+
+    if (order.deliveryAddress && typeof order.deliveryAddress === 'object') {
+        if (order.deliveryAddress.latitude) userLocation.latitude = Number(order.deliveryAddress.latitude);
+        if (order.deliveryAddress.longitude) userLocation.longitude = Number(order.deliveryAddress.longitude);
+    }
+
+    // Check delivery boy details & location
+    let deliveryBoyInfo = null;
+    if (order.deliveryBoyId) {
+        const DeliveryBoy = require('../models/deliveryBoyModel');
+        const dboy = await DeliveryBoy.findById(order.deliveryBoyId).select('-password');
+        if (dboy) {
+            deliveryBoyInfo = {
+                id: dboy._id,
+                name: dboy.name,
+                phone: dboy.phone,
+                vehicleType: dboy.vehicleType || 'Bike',
+                vehicleNumber: dboy.vehicleNumber || 'RJ-14-DB-2026',
+                profileImage: dboy.profileImage,
+                location: (dboy.location && dboy.location.latitude && dboy.location.longitude) ? dboy.location : { latitude: 26.9170, longitude: 75.7940, address: "En route" },
+                isOnline: dboy.isOnline
+            };
+        }
+    }
+
+    return {
+        orderId: order.orderId,
+        orderStatus: order.orderStatus,
+        paymentStatus: order.paymentStatus,
+        customerName: order.customerName,
+        phoneNumber: order.phoneNumber,
+        deliveryAddress: userLocation.address,
+        diningType: order.diningType,
+        totalAmount: order.totalAmount,
+        orderTime: order.orderTime,
+        createdAt: order.createdAt,
+        items: order.orderedItems || order.items || [],
+        restaurantLocation,
+        userLocation,
+        deliveryBoy: deliveryBoyInfo
+    };
+};
+
 module.exports = {
     createOrder,
     getAllOrders,
     getUserOrders,
-    updateOrderStatus
+    updateOrderStatus,
+    getOrderTrackingInfo
 };
+

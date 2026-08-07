@@ -49,7 +49,8 @@ export const CartDrawer = ({
   guestPhone,
   setGuestPhone,
   guestEmail,
-  setGuestEmail
+  setGuestEmail,
+  onTrackOrder
 }) => {
   if (!showCartDrawer) return null
 
@@ -681,6 +682,44 @@ export const CartDrawer = ({
                 </div>
               )}
             </div>
+            <button
+              className="success-track-btn"
+              onClick={() => {
+                const currentOrder = { orderId: placedOrderId || 'AV-18293746', deliveryAddress: userLocation, orderStatus: 'Preparing' };
+                setCart([]);
+                setAppliedDiscount(0);
+                setCouponCode('');
+                setCouponMsg('');
+                setPaymentMode('');
+                setUpiAddress('');
+                setCardHolder('');
+                setCardNumber('');
+                setCardExpiry('');
+                setCardCvv('');
+                setShowCartDrawer(false);
+                if (onTrackOrder) onTrackOrder(currentOrder);
+              }}
+              style={{
+                width: '100%',
+                background: 'linear-gradient(135deg, #2D3F76, #1E2B52)',
+                color: '#ffffff',
+                border: 'none',
+                padding: '14px',
+                borderRadius: '14px',
+                fontSize: '14px',
+                fontWeight: '800',
+                cursor: 'pointer',
+                marginBottom: '10px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                boxShadow: '0 8px 20px rgba(45,63,118,0.25)'
+              }}
+            >
+              <span>🗺️</span> Track Order on Google Maps
+            </button>
+
             <button className="success-close-btn" onClick={() => {
               setCart([]);
               setAppliedDiscount(0);

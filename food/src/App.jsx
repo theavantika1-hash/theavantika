@@ -20,6 +20,8 @@ import ProductCustomizationModal from './components/ProductCustomizationModal'
 import CertificatesSection from './components/CertificatesSection'
 import Footer from './components/Footer'
 import FloatingMenuButton from './components/FloatingMenuButton'
+import OrderTrackingModal from './components/OrderTrackingModal'
+import GoogleLocationPickerModal from './components/GoogleLocationPickerModal'
 import './styles/customization-modal.css'
 import './styles/floating-menu.css'
 import { handleDiningModeSelection } from './utils/diningModeHelper'
@@ -54,8 +56,12 @@ function App() {
   // Dining Mode State
   const [diningMode, setDiningMode] = useState(null)
 
+  // Live Order Tracking State
+  const [activeTrackingOrder, setActiveTrackingOrder] = useState(null)
+
   // Location States
   const [showLocationPopup, setShowLocationPopup] = useState(false)
+  const [showGoogleLocationPicker, setShowGoogleLocationPicker] = useState(false)
   const [userLocation, setUserLocation] = useState('')
   const [tempLocation, setTempLocation] = useState('')
 
@@ -562,6 +568,31 @@ function App() {
             </div>
             <h2 className="location-title">Enter Delivery Address</h2>
             <p className="location-subtitle-text">Provide your address so we can customize your delivery experience.</p>
+            <button
+              onClick={() => {
+                setShowLocationPopup(false);
+                setShowGoogleLocationPicker(true);
+              }}
+              style={{
+                width: '100%',
+                background: 'linear-gradient(135deg, #0284c7, #0369a1)',
+                color: '#ffffff',
+                border: 'none',
+                padding: '12px',
+                borderRadius: '12px',
+                fontSize: '13px',
+                fontWeight: '800',
+                cursor: 'pointer',
+                marginBottom: '12px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                boxShadow: '0 4px 14px rgba(2,132,199,0.3)'
+              }}
+            >
+              <span>🎯</span> Select via Google Maps & GPS
+            </button>
             <div className="location-input-wrapper">
               <input
                 type="text"
@@ -570,7 +601,6 @@ function App() {
                 onChange={(e) => setTempLocation(e.target.value)}
                 className="location-input-field"
                 onKeyDown={(e) => { if (e.key === 'Enter') handleConfirmLocation(); }}
-                autoFocus
               />
             </div>
             <button onClick={handleConfirmLocation} className="location-confirm-btn">
@@ -871,6 +901,7 @@ function App() {
         setGuestPhone={setGuestPhone}
         guestEmail={guestEmail}
         setGuestEmail={setGuestEmail}
+        onTrackOrder={(ord) => setActiveTrackingOrder(ord)}
       />
       {/* ===== MOBILE FILTER PANEL (Zomato Style) ===== */}
       {showMobileFilterPanel && (
@@ -1331,12 +1362,11 @@ function App() {
               <button
                 className="address-sheet-action-btn"
                 onClick={() => {
-                  setUserLocation('12.9562° N, 77.7019° E - Prestige Tech Park, Bengaluru');
-                  setSelectedAddressId('gps');
                   setShowAddressSheet(false);
+                  setShowGoogleLocationPicker(true);
                 }}
               >
-                📍 Use Current Location
+                🎯 Detect Current Location via Google Maps (GPS)
               </button>
 
               <button
@@ -1699,6 +1729,7 @@ function App() {
         setFilterVeg={setFilterVeg}
         darkMode={darkMode}
         setDarkMode={setDarkMode}
+        onTrackOrder={(ord) => setActiveTrackingOrder(ord)}
       />
 
       {/* Floating Menu Button (Zomato Style) */}
@@ -1724,6 +1755,25 @@ function App() {
           }}
         />
       )}
+
+      {/* Live Order Tracking Modal with Google Maps */}
+      {activeTrackingOrder && (
+        <OrderTrackingModal
+          order={activeTrackingOrder}
+          onClose={() => setActiveTrackingOrder(null)}
+        />
+      )}
+
+      {/* Google Location & GPS Picker Modal */}
+      <GoogleLocationPickerModal
+        isOpen={showGoogleLocationPicker}
+        onClose={() => setShowGoogleLocationPicker(false)}
+        onSelectLocation={(selectedLoc) => {
+          setUserLocation(selectedLoc.address);
+          setTempLocation(selectedLoc.address);
+          setSelectedAddressId('gps_google');
+        }}
+      />
     </>
   )
 }

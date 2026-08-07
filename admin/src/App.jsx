@@ -48,6 +48,7 @@ import ReviewsPage from './ReviewsPage'
 import MenuPage from './MenuPage'
 import WalletPage from './WalletPage'
 import InventoryPage from './InventoryPage'
+import LiveTrackingModal from './LiveTrackingModal'
 
 function App() {
   // ==========================================
@@ -65,6 +66,7 @@ function App() {
   const [activeModal, setActiveModal] = useState(null) // null, 'reserve', 'billing', 'qr'
   const [selectedOrder, setSelectedOrder] = useState(null) // for order detail popup
   const [statusChangeOrder, setStatusChangeOrder] = useState(null) // for status changer popup
+  const [trackingOrder, setTrackingOrder] = useState(null) // for Google Maps Live Tracking popup
   const [notification, setNotification] = useState(null)
   const [revenueFilter, setRevenueFilter] = useState('monthly') // weekly, monthly
   const [mapFilter, setMapFilter] = useState('weekly') // weekly, monthly
@@ -523,6 +525,7 @@ function App() {
                     orders={orders}
                     setSelectedOrder={setSelectedOrder}
                     setStatusChangeOrder={setStatusChangeOrder}
+                    setTrackingOrder={setTrackingOrder}
                   />
                 )}
 
@@ -923,6 +926,14 @@ function App() {
                 </form>
               </div>
             </div>
+          )}
+
+          {/* Admin Live Tracking Modal on Google Maps */}
+          {trackingOrder && (
+            <LiveTrackingModal
+              order={trackingOrder}
+              onClose={() => setTrackingOrder(null)}
+            />
           )}
         </>
       )}

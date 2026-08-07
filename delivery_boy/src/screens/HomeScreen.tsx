@@ -12,6 +12,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { styles } from '../styles/appStyles';
 import { deliveryBoyApi } from '../config/api';
+import { PermissionRequestBanner } from '../components/PermissionRequestBanner';
 
 const { width } = Dimensions.get('window');
 
@@ -53,6 +54,18 @@ export function HomeScreen({
   const [monthlyData, setMonthlyData] = useState([{ month: 'Week 1', val: 40 }, { month: 'Week 2', val: 65 }, { month: 'Week 3', val: 80 }, { month: 'Week 4', val: 95 }]);
   const [weeklyData, setWeeklyData] = useState([{ month: 'Mon', val: 30 }, { month: 'Wed', val: 60 }, { month: 'Fri', val: 85 }, { month: 'Sun', val: 70 }]);
   const [isLoading, setIsLoading] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(2);
+
+  // Subscribe to Notification Service
+  useEffect(() => {
+    import('../utils/notificationService').then(({ notificationService }) => {
+      setUnreadCount(notificationService.getUnreadCount());
+      const unsub = notificationService.subscribe(() => {
+        setUnreadCount(notificationService.getUnreadCount());
+      });
+      return () => unsub();
+    });
+  }, []);
 
   // Fetch Live Real Data from Backend Database
   useEffect(() => {
@@ -87,6 +100,39 @@ export function HomeScreen({
 
     fetchDashboard();
   }, [userEmail]);
+
+  // Periodic Live GPS Location Streaming to Backend Database
+  useEffect(() => {
+    if (!isAvailable) return;
+
+    const sendCurrentLocation = () => {
+      const globalNav = typeof globalThis !== 'undefined' ? (globalThis as any).navigator : undefined;
+      if (globalNav && globalNav.geolocation) {
+        globalNav.geolocation.getCurrentPosition(
+          async (pos: any) => {
+            try {
+              await deliveryBoyApi.updateLocation({
+                latitude: pos.coords.latitude,
+                longitude: pos.coords.longitude,
+                address: currentLocationText || 'Live Delivery GPS Location'
+              });
+              console.log('[Delivery Boy GPS] Live Location updated to DB:', pos.coords.latitude, pos.coords.longitude);
+            } catch (err: any) {
+              console.error('Failed to update live GPS location:', err?.message || err);
+            }
+          },
+          (err: any) => {
+            console.log('GPS Geolocation info:', err?.message || err);
+          },
+          { enableHighAccuracy: true, timeout: 10000 }
+        );
+      }
+    };
+
+    sendCurrentLocation();
+    const interval = setInterval(sendCurrentLocation, 6000); // Send live GPS every 6 seconds
+    return () => clearInterval(interval);
+  }, [isAvailable, currentLocationText]);
 
   // Handle Availability Toggle Switch with Database Update
   const handleToggleAvailable = async (val: boolean) => {
@@ -162,12 +208,17 @@ export function HomeScreen({
               activeOpacity={0.75}
             >
               <Text style={{ fontSize: 20 }}>🔔</Text>
-              <View style={styles.homeBellBadge}>
-                <Text style={styles.homeBellBadgeText}>2</Text>
-              </View>
+              {unreadCount > 0 && (
+                <View style={styles.homeBellBadge}>
+                  <Text style={styles.homeBellBadgeText}>{unreadCount}</Text>
+                </View>
+              )}
             </TouchableOpacity>
           </View>
         </View>
+
+        {/* Permission Request Banner */}
+        <PermissionRequestBanner />
 
         {/* PROFILE OVERLAPPING CARD */}
         <View style={styles.homeProfileCardWrapper}>
