@@ -52,14 +52,6 @@ export const OrderTrackingModal = ({ order, onClose }) => {
   const itemCount = order?.orderedItems?.length || 2;
   const restaurantName = trackingData?.restaurantLocation?.name || 'Avantika Restaurant';
 
-  // Live rider movement ticker along the route
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setRiderProgress(prev => (prev >= 0.92 ? 0.25 : prev + 0.04));
-    }, 3000);
-    return () => clearInterval(interval);
-  }, []);
-
   // Fetch live tracking details from backend
   const fetchTrackingInfo = async () => {
     try {
@@ -243,10 +235,10 @@ export const OrderTrackingModal = ({ order, onClose }) => {
         });
       }
 
-      // Rider Marker Pin
-      const riderLat = restPos.lat + (userPos.lat - restPos.lat) * riderProgress;
-      const riderLng = restPos.lng + (userPos.lng - restPos.lng) * riderProgress;
-      const riderPos = { lat: riderLat, lng: riderLng };
+      // Rider Marker Pin using REAL-TIME GPS coordinates from MongoDB backend
+      const liveRiderLat = trackingData?.deliveryBoy?.location?.latitude || restLat;
+      const liveRiderLng = trackingData?.deliveryBoy?.location?.longitude || restLng;
+      const riderPos = { lat: Number(liveRiderLat), lng: Number(liveRiderLng) };
 
       if (!riderMarkerRef.current) {
         riderMarkerRef.current = new window.google.maps.Marker({
@@ -264,7 +256,7 @@ export const OrderTrackingModal = ({ order, onClose }) => {
     } catch (e) {
       console.warn('Google maps rendering notice:', e);
     }
-  }, [mapsLoaded, trackingData, riderProgress]);
+  }, [mapsLoaded, trackingData]);
 
   const handleSaveApiKey = () => {
     if (apiKey.trim()) {
@@ -275,6 +267,14 @@ export const OrderTrackingModal = ({ order, onClose }) => {
 
   const riderName = trackingData?.deliveryBoy?.name || order?.deliveryBoyName || order?.deliveryBoy?.name || 'Ashwani Raj';
   const riderPhone = trackingData?.deliveryBoy?.phone || '+919876543210';
+
+  const liveRiderLat = trackingData?.deliveryBoy?.location?.latitude || 27.596704;
+  const restLat = trackingData?.restaurantLocation?.latitude || 27.596704;
+  const userLat = trackingData?.userLocation?.latitude || 27.6208;
+  const latDiff = userLat - restLat;
+  const rawProgress = latDiff !== 0 ? (liveRiderLat - restLat) / latDiff : 0.4;
+  const realProgress = Math.max(0.05, Math.min(0.95, rawProgress));
+  const riderLeftPx = `${30 + realProgress * 300}px`;
 
   // Dynamic status messages matching Swiggy / Zomato
   const getStatusTitle = () => {
@@ -289,8 +289,6 @@ export const OrderTrackingModal = ({ order, onClose }) => {
     if (currentStatus === 'Delivered') return 'Your food package has been handed over successfully';
     return `${riderName} is at the restaurant, and is about to pick your order`;
   };
-
-  const riderLeftPx = `${30 + riderProgress * 480}px`;
 
   return (
     <div
