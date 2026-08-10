@@ -1,23 +1,20 @@
 import React, { useEffect, useState, useRef } from 'react';
 
-
-const getEmojiMarkerIcon = (emoji) => {
+const getEmojiMarkerIcon = (emoji, bg = '#ffffff', borderColor = '#ef4444') => {
   const canvas = document.createElement('canvas');
   canvas.width = 44;
   canvas.height = 44;
   const ctx = canvas.getContext('2d');
 
-  // Draw premium white pin circle container
   ctx.beginPath();
   ctx.arc(22, 22, 20, 0, 2 * Math.PI);
-  ctx.fillStyle = '#ffffff';
+  ctx.fillStyle = bg;
   ctx.fill();
   ctx.lineWidth = 2.5;
-  ctx.strokeStyle = '#4CA687';
+  ctx.strokeStyle = borderColor;
   ctx.stroke();
 
-  // Draw emoji text centered
-  ctx.font = '24px serif';
+  ctx.font = '22px serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText(emoji, 22, 22);
@@ -26,9 +23,7 @@ const getEmojiMarkerIcon = (emoji) => {
 };
 
 /**
- * OrderTrackingModal Component
- * Shows Google Maps order tracking route, restaurant-to-user path, total distance, ETA, 
- * and live delivery boy location.
+ * OrderTrackingModal Component - Swiggy / Zomato Premium UI Style
  */
 export const OrderTrackingModal = ({ order, onClose }) => {
   const mapRef = useRef(null);
@@ -41,7 +36,7 @@ export const OrderTrackingModal = ({ order, onClose }) => {
   const [loading, setLoading] = useState(true);
   const [mapsLoaded, setMapsLoaded] = useState(false);
   const [mapsError, setMapsError] = useState(false);
-  const [distanceText, setDistanceText] = useState('4.8 km');
+  const [distanceText, setDistanceText] = useState('3.8 km');
   const [durationText, setDurationText] = useState('18 mins');
   const [apiKey, setApiKey] = useState(
     localStorage.getItem('avantika_google_maps_key') ||
@@ -49,33 +44,21 @@ export const OrderTrackingModal = ({ order, onClose }) => {
     ''
   );
   const [showKeyInput, setShowKeyInput] = useState(false);
-  const [zoom, setZoom] = useState(13);
-  const [hasManuallyZoomed, setHasManuallyZoomed] = useState(false);
-  const [riderProgress, setRiderProgress] = useState(0.25);
-
-  const restInfoRef = useRef(null);
-  const userInfoRef = useRef(null);
-  const riderInfoRef = useRef(null);
+  const [zoom, setZoom] = useState(14);
+  const [riderProgress, setRiderProgress] = useState(0.35);
 
   const orderId = order?.orderId || order?._id || order?.id || 'AV-18293746';
   const currentStatus = trackingData?.orderStatus || order?.orderStatus || 'Preparing';
-  const hasFitBoundsRef = useRef(false);
+  const itemCount = order?.orderedItems?.length || 2;
+  const restaurantName = trackingData?.restaurantLocation?.name || 'Avantika Restaurant';
 
+  // Live rider movement ticker along the route
   useEffect(() => {
-    hasFitBoundsRef.current = false;
-  }, [orderId]);
-
-  // Simulated progression ticker for rider when en route
-  useEffect(() => {
-    if (currentStatus !== 'Out for Delivery') return;
     const interval = setInterval(() => {
-      setRiderProgress(prev => {
-        if (prev >= 0.95) return 0.95;
-        return prev + 0.05;
-      });
-    }, 4000);
+      setRiderProgress(prev => (prev >= 0.92 ? 0.25 : prev + 0.04));
+    }, 3000);
     return () => clearInterval(interval);
-  }, [currentStatus]);
+  }, []);
 
   // Fetch live tracking details from backend
   const fetchTrackingInfo = async () => {
@@ -85,55 +68,52 @@ export const OrderTrackingModal = ({ order, onClose }) => {
       if (json.success && json.data) {
         setTrackingData(json.data);
       } else {
-        // Fallback mock structure if backend order isn't found
         setTrackingData({
           orderId,
           orderStatus: order?.orderStatus || 'Preparing',
-          deliveryAddress: typeof order?.deliveryAddress === 'string' ? order.deliveryAddress : 'Customer Delivery Address',
+          deliveryAddress: typeof order?.deliveryAddress === 'string' ? order.deliveryAddress : 'To Office | 197 c, Alwar, Rajasthan',
           restaurantLocation: {
             name: 'Avantika Restaurant',
             address: 'SH 25, near Telco circle, Bhagwanpura, Alwar, Rajasthan 301001',
-            latitude: 27.6208,
-            longitude: 76.6436
-          },
-          userLocation: {
-            address: typeof order?.deliveryAddress === 'string' ? order.deliveryAddress : 'Delivery Location',
             latitude: 27.596704286992576,
             longitude: 76.63211439999625
           },
+          userLocation: {
+            address: typeof order?.deliveryAddress === 'string' ? order.deliveryAddress : 'Delivery Address, Alwar',
+            latitude: 27.6208,
+            longitude: 76.6436
+          },
           deliveryBoy: {
-            name: 'Ramesh Kumar',
+            name: order?.deliveryBoyName || order?.deliveryBoy?.name || 'Ashwani Raj',
             phone: '+91 98765 43210',
             vehicleType: 'Bike',
             vehicleNumber: 'RJ-14-DB-8812',
-            location: { latitude: 27.6225, longitude: 76.6443, address: 'Near Telco Circle' }
+            location: { latitude: 27.6085, longitude: 76.6385, address: 'En Route on Alwar Rd' }
           }
         });
       }
     } catch (err) {
-      console.log('Error fetching order tracking info:', err);
-      // Fallback data
       setTrackingData({
         orderId,
         orderStatus: order?.orderStatus || 'Preparing',
-        deliveryAddress: typeof order?.deliveryAddress === 'string' ? order.deliveryAddress : 'Customer Delivery Address',
+        deliveryAddress: typeof order?.deliveryAddress === 'string' ? order.deliveryAddress : 'To Office | 197 c, Alwar, Rajasthan',
         restaurantLocation: {
           name: 'Avantika Restaurant',
           address: 'SH 25, near Telco circle, Bhagwanpura, Alwar, Rajasthan 301001',
-          latitude: 27.6208,
-          longitude: 76.6436
-        },
-        userLocation: {
-          address: typeof order?.deliveryAddress === 'string' ? order.deliveryAddress : 'Delivery Location',
           latitude: 27.596704286992576,
           longitude: 76.63211439999625
         },
+        userLocation: {
+          address: typeof order?.deliveryAddress === 'string' ? order.deliveryAddress : 'Delivery Address, Alwar',
+          latitude: 27.6208,
+          longitude: 76.6436
+        },
         deliveryBoy: {
-          name: 'Ramesh Kumar',
+          name: order?.deliveryBoyName || order?.deliveryBoy?.name || 'Ashwani Raj',
           phone: '+91 98765 43210',
           vehicleType: 'Bike',
           vehicleNumber: 'RJ-14-DB-8812',
-          location: { latitude: 27.6225, longitude: 76.6443, address: 'Near Telco Circle' }
+          location: { latitude: 27.6085, longitude: 76.6385, address: 'En Route on Alwar Rd' }
         }
       });
     } finally {
@@ -143,324 +123,174 @@ export const OrderTrackingModal = ({ order, onClose }) => {
 
   useEffect(() => {
     fetchTrackingInfo();
-    const interval = setInterval(fetchTrackingInfo, 5000); // Polling every 5 seconds
+    const interval = setInterval(fetchTrackingInfo, 5000);
     return () => clearInterval(interval);
   }, [orderId]);
 
   // Load Google Maps JS SDK dynamically
   useEffect(() => {
+    if (!apiKey) {
+      setMapsLoaded(false);
+      return;
+    }
+
     if (window.google && window.google.maps) {
       setMapsLoaded(true);
       return;
     }
 
-    if (!apiKey) {
-      setMapsError(true);
-      return;
-    }
+    const scriptId = 'google-maps-js-sdk';
+    const existingScript = document.getElementById(scriptId);
 
-    const scriptId = 'google-maps-script';
-    if (document.getElementById(scriptId)) {
-      setMapsLoaded(true);
+    if (existingScript) {
+      existingScript.onload = () => setMapsLoaded(true);
       return;
     }
 
     const script = document.createElement('script');
     script.id = scriptId;
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places,geometry`;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey.trim()}&libraries=places,geometry`;
     script.async = true;
     script.defer = true;
-    script.onload = () => {
-      setMapsLoaded(true);
-      setMapsError(false);
-    };
-    script.onerror = () => {
-      setMapsError(true);
-    };
+    script.onload = () => setMapsLoaded(true);
+    script.onerror = () => setMapsError(true);
     document.head.appendChild(script);
   }, [apiKey]);
 
-  // Render Google Map with Markers, Directions & Route
+  // Initialize & Render Google Map
   useEffect(() => {
-    if (!mapsLoaded || !mapRef.current || !trackingData) return;
+    if (!mapsLoaded || !mapRef.current || !window.google) return;
 
     try {
-      const { restaurantLocation, userLocation, deliveryBoy } = trackingData;
+      const restLat = trackingData?.restaurantLocation?.latitude || 27.596704;
+      const restLng = trackingData?.restaurantLocation?.longitude || 76.632114;
+      const userLat = trackingData?.userLocation?.latitude || 27.6208;
+      const userLng = trackingData?.userLocation?.longitude || 76.6436;
 
-      const restPos = { lat: restaurantLocation.latitude, lng: restaurantLocation.longitude };
-      const userPos = { lat: userLocation.latitude, lng: userLocation.longitude };
+      const restPos = { lat: restLat, lng: restLng };
+      const userPos = { lat: userLat, lng: userLng };
 
-      let map = googleMapInstanceRef.current;
-
-      // 1. If map is not initialized yet, initialize it
-      if (!map) {
-        map = new window.google.maps.Map(mapRef.current, {
-          center: { lat: 27.6208, lng: 76.6436 },
-          zoom: zoom,
-          mapTypeControl: true,
-          streetViewControl: true,
-          fullscreenControl: true
+      if (!googleMapInstanceRef.current) {
+        const map = new window.google.maps.Map(mapRef.current, {
+          center: { lat: (restLat + userLat) / 2, lng: (restLng + userLng) / 2 },
+          zoom: 14,
+          disableDefaultUI: true,
+          styles: [
+            { featureType: 'poi', stylers: [{ visibility: 'off' }] },
+            { featureType: 'transit', stylers: [{ visibility: 'off' }] }
+          ]
         });
         googleMapInstanceRef.current = map;
+      }
 
-        // Sync zoom if user zooms via google map controls/gestures
-        map.addListener('zoom_changed', () => {
-          try {
-            const newZ = map.getZoom();
-            setZoom(newZ);
-          } catch (err) { }
-        });
+      const map = googleMapInstanceRef.current;
 
-        // Directions Renderer
+      // Swiggy Orange / Red Polyline
+      const directionsService = new window.google.maps.DirectionsService();
+      if (!directionsRendererRef.current) {
         directionsRendererRef.current = new window.google.maps.DirectionsRenderer({
           map: map,
           suppressMarkers: true,
-          preserveViewport: true,
           polylineOptions: {
-            strokeColor: '#4CA687',
-            strokeWeight: 5,
-            strokeOpacity: 0.8
+            strokeColor: '#f97316',
+            strokeWeight: 6,
+            strokeOpacity: 0.95
           }
         });
       }
 
-      // 2. Fetch directions / route update using address string for perfect POI snapping
-      const directionsService = new window.google.maps.DirectionsService();
-      const originAddress = restaurantLocation.address || "SH 25, near Telco circle, Bhagwanpura, Alwar, Rajasthan 301001";
-      const destAddress = userLocation.address || `${userLocation.latitude}, ${userLocation.longitude}`;
-
       directionsService.route(
         {
           origin: restPos,
-          destination: destAddress,
+          destination: userPos,
           travelMode: window.google.maps.TravelMode.DRIVING
         },
         (result, status) => {
-          if (status === window.google.maps.DirectionsStatus.OK) {
-            if (directionsRendererRef.current) {
-              directionsRendererRef.current.setDirections(result);
-            }
-            const route = result.routes[0];
-            if (route && route.legs[0]) {
-              const leg = route.legs[0];
+          if (status === 'OK' && result) {
+            directionsRendererRef.current.setDirections(result);
+            const leg = result.routes[0]?.legs[0];
+            if (leg) {
               setDistanceText(leg.distance.text);
               setDurationText(leg.duration.text);
-
-              const resolvedRestPos = leg.start_location;
-              const resolvedUserPos = leg.end_location;
-
-              const targetRestPos = { lat: 27.596704286992576, lng: 76.63211439999625 };
-
-              // Render/Update Restaurant Marker
-              if (!restMarkerRef.current) {
-                restMarkerRef.current = new window.google.maps.Marker({
-                  position: targetRestPos,
-                  map: map,
-                  title: 'AVANTIKA - The Fine Dine',
-                  icon: {
-                    url: getEmojiMarkerIcon('🍔'),
-                    scaledSize: new window.google.maps.Size(38, 38)
-                  }
-                });
-                restInfoRef.current = new window.google.maps.InfoWindow({
-                  content: '<div style="color:#1e293b; font-family:inherit; font-size:10px; font-weight:800; padding:2px 4px;">AVANTIKA - The Fine Dine</div>',
-                  disableAutoPan: true
-                });
-                restInfoRef.current.open(map, restMarkerRef.current);
-              } else {
-                restMarkerRef.current.setPosition(targetRestPos);
-              }
-
-              // Render/Update User Marker
-              if (!userMarkerRef.current) {
-                userMarkerRef.current = new window.google.maps.Marker({
-                  position: resolvedUserPos,
-                  map: map,
-                  title: 'Your Location',
-                  icon: {
-                    url: getEmojiMarkerIcon('🏠'),
-                    scaledSize: new window.google.maps.Size(38, 38)
-                  }
-                });
-                userInfoRef.current = new window.google.maps.InfoWindow({
-                  content: '<div style="color:#1e293b; font-family:inherit; font-size:10px; font-weight:800; padding:2px 4px;">Your Location</div>',
-                  disableAutoPan: true
-                });
-                userInfoRef.current.open(map, userMarkerRef.current);
-              } else {
-                userMarkerRef.current.setPosition(resolvedUserPos);
-              }
-
-              // Auto center and zoom to fit both locations on first success
-              if (!hasFitBoundsRef.current && map) {
-                const bounds = new window.google.maps.LatLngBounds();
-                bounds.extend(targetRestPos);
-                bounds.extend(resolvedUserPos);
-                map.fitBounds(bounds);
-                hasFitBoundsRef.current = true;
-              }
-
-              // Render/Update Rider Marker
-              if (deliveryBoy) {
-                let dboyPos = targetRestPos;
-                if (currentStatus === 'Out for Delivery') {
-                  dboyPos = {
-                    lat: targetRestPos.lat + (resolvedUserPos.lat() - targetRestPos.lat) * riderProgress,
-                    lng: targetRestPos.lng + (resolvedUserPos.lng() - targetRestPos.lng) * riderProgress
-                  };
-                } else if (currentStatus === 'Delivered') {
-                  dboyPos = resolvedUserPos;
-                }
-
-                if (!riderMarkerRef.current) {
-                  riderMarkerRef.current = new window.google.maps.Marker({
-                    position: dboyPos,
-                    map: map,
-                    title: 'Delivery Executive',
-                    icon: {
-                      url: getEmojiMarkerIcon('🛵'),
-                      scaledSize: new window.google.maps.Size(36, 36)
-                    }
-                  });
-                  riderInfoRef.current = new window.google.maps.InfoWindow({
-                    content: `<div style="color:#1e293b; font-family:inherit; font-size:10px; font-weight:800; padding:2px 4px;">Rider (Ramesh)</div>`,
-                    disableAutoPan: true
-                  });
-                  riderInfoRef.current.open(map, riderMarkerRef.current);
-                } else {
-                  riderMarkerRef.current.setPosition(dboyPos);
-                }
-              }
             }
           }
         }
       );
 
-      // 3. Calculate rider position dynamically
-      if (deliveryBoy && deliveryBoy.location) {
-        let dboyPos = {
-          lat: deliveryBoy.location.latitude || (restPos.lat + userPos.lat) / 2,
-          lng: deliveryBoy.location.longitude || (restPos.lng + userPos.lng) / 2
-        };
-
-        // If en route, interpolate along the path from restaurant to user
-        if (currentStatus === 'Out for Delivery') {
-          dboyPos = {
-            lat: restPos.lat + (userPos.lat - restPos.lat) * riderProgress,
-            lng: restPos.lng + (userPos.lng - restPos.lng) * riderProgress
-          };
-        } else if (currentStatus === 'Delivered') {
-          dboyPos = userPos;
-        } else {
-          dboyPos = restPos;
-        }
-
-        if (!riderMarkerRef.current) {
-          riderMarkerRef.current = new window.google.maps.Marker({
-            position: dboyPos,
-            map: map,
-            title: `Delivery Boy: ${deliveryBoy.name}`,
-            icon: {
-              url: 'https://cdn-icons-png.flaticon.com/512/2972/2972531.png',
-              scaledSize: new window.google.maps.Size(42, 42)
-            }
-          });
-
-          // Rider InfoWindow Tag
-          riderInfoRef.current = new window.google.maps.InfoWindow({
-            content: `<div style="color:#2563eb; font-family:inherit; font-size:10px; font-weight:800; padding:2px 4px;">Rider: ${deliveryBoy.name} (${currentStatus === 'Out for Delivery' ? `${(riderProgress * 100).toFixed(0)}% En Route` : currentStatus})</div>`,
-            disableAutoPan: true
-          });
-          riderInfoRef.current.open(map, riderMarkerRef.current);
-        } else {
-          riderMarkerRef.current.setPosition(dboyPos);
-          if (riderInfoRef.current) {
-            riderInfoRef.current.setContent(`<div style="color:#2563eb; font-family:inherit; font-size:10px; font-weight:800; padding:2px 4px;">Rider: ${deliveryBoy.name} (${currentStatus === 'Out for Delivery' ? `${(riderProgress * 100).toFixed(0)}% En Route` : currentStatus})</div>`);
-            riderInfoRef.current.open(map, riderMarkerRef.current);
+      // Restaurant Marker Pin
+      if (!restMarkerRef.current) {
+        restMarkerRef.current = new window.google.maps.Marker({
+          position: restPos,
+          map: map,
+          title: restaurantName,
+          icon: {
+            url: getEmojiMarkerIcon('🏪', '#ffffff', '#0f172a'),
+            scaledSize: new window.google.maps.Size(40, 40)
           }
-        }
+        });
+      }
+
+      // Customer Marker Pin
+      if (!userMarkerRef.current) {
+        userMarkerRef.current = new window.google.maps.Marker({
+          position: userPos,
+          map: map,
+          title: 'Customer Address',
+          icon: {
+            url: getEmojiMarkerIcon('🏠', '#ffffff', '#10b981'),
+            scaledSize: new window.google.maps.Size(40, 40)
+          }
+        });
+      }
+
+      // Rider Marker Pin
+      const riderLat = restPos.lat + (userPos.lat - restPos.lat) * riderProgress;
+      const riderLng = restPos.lng + (userPos.lng - restPos.lng) * riderProgress;
+      const riderPos = { lat: riderLat, lng: riderLng };
+
+      if (!riderMarkerRef.current) {
+        riderMarkerRef.current = new window.google.maps.Marker({
+          position: riderPos,
+          map: map,
+          title: trackingData?.deliveryBoy?.name || 'Delivery Partner',
+          icon: {
+            url: getEmojiMarkerIcon('🛵', '#ef4444', '#ffffff'),
+            scaledSize: new window.google.maps.Size(44, 44)
+          }
+        });
       } else {
-        if (riderMarkerRef.current) {
-          riderMarkerRef.current.setMap(null);
-          riderMarkerRef.current = null;
-        }
-        if (riderInfoRef.current) {
-          riderInfoRef.current.close();
-          riderInfoRef.current = null;
-        }
+        riderMarkerRef.current.setPosition(riderPos);
       }
     } catch (e) {
-      console.log('Google Map render notice:', e.message);
+      console.warn('Google maps rendering notice:', e);
     }
-  }, [mapsLoaded, trackingData, riderProgress, currentStatus]);
-
-  const handleZoomIn = () => {
-    if (googleMapInstanceRef.current) {
-      try {
-        const nextZoom = googleMapInstanceRef.current.getZoom() + 1;
-        googleMapInstanceRef.current.setZoom(nextZoom);
-        setZoom(nextZoom);
-      } catch (err) {
-        setZoom(prev => Math.min(prev + 1, 20));
-      }
-    } else {
-      setZoom(prev => Math.min(prev + 1, 20));
-    }
-  };
-
-  const handleZoomOut = () => {
-    if (googleMapInstanceRef.current) {
-      try {
-        const nextZoom = googleMapInstanceRef.current.getZoom() - 1;
-        googleMapInstanceRef.current.setZoom(nextZoom);
-        setZoom(nextZoom);
-      } catch (err) {
-        setZoom(prev => Math.max(prev - 1, 1));
-      }
-    } else {
-      setZoom(prev => Math.max(prev - 1, 1));
-    }
-  };
+  }, [mapsLoaded, trackingData, riderProgress]);
 
   const handleSaveApiKey = () => {
-    localStorage.setItem('avantika_google_maps_key', apiKey.trim());
-    setShowKeyInput(false);
-    window.location.reload();
+    if (apiKey.trim()) {
+      localStorage.setItem('avantika_google_maps_key', apiKey.trim());
+      setShowKeyInput(false);
+    }
   };
 
-  const statusList = [
-    { key: 'Requested', label: 'Order Placed', desc: 'Order received by restaurant', icon: '📝' },
-    { key: 'Accepted', label: 'Accepted', desc: 'Order confirmed', icon: '✅' },
-    { key: 'Preparing', label: 'Cooking & Packing', desc: 'Kitchen is preparing food', icon: '👨‍🍳' },
-    { key: 'Out for Delivery', label: 'Out for Delivery', desc: 'Rider is on the way', icon: '🛵' },
-    { key: 'Delivered', label: 'Delivered', desc: 'Enjoy your meal!', icon: '🎉' }
-  ];
+  const riderName = trackingData?.deliveryBoy?.name || order?.deliveryBoyName || order?.deliveryBoy?.name || 'Ashwani Raj';
+  const riderPhone = trackingData?.deliveryBoy?.phone || '+919876543210';
 
-  const getStepState = (stepKey, index) => {
-    const keys = ['Requested', 'Accepted', 'Preparing', 'Out for Delivery', 'Delivered'];
-    const currentIdx = keys.indexOf(currentStatus) !== -1 ? keys.indexOf(currentStatus) : 2;
-    if (index < currentIdx) return 'completed';
-    if (index === currentIdx) return 'active';
-    return 'upcoming';
+  // Dynamic status messages matching Swiggy / Zomato
+  const getStatusTitle = () => {
+    if (currentStatus === 'Out for Delivery') return 'Partner is on the way';
+    if (currentStatus === 'Delivered') return 'Order Delivered!';
+    if (currentStatus === 'Picked Up') return 'Picking your order now';
+    return 'Order Received!';
   };
 
-  // Position calculations for Simulated SVG View
-  let riderLeft = '40px';
-  let riderTop = '240px';
-  if (currentStatus === 'Out for Delivery') {
-    const startLeft = 40;
-    const endLeft = 560; // based on width of 680px
-    const progressLeft = startLeft + (endLeft - startLeft) * riderProgress;
-    riderLeft = `${progressLeft}px`;
-    const arcHeight = Math.sin(riderProgress * Math.PI) * 120;
-    riderTop = `${240 - arcHeight}px`;
-  } else if (currentStatus === 'Delivered') {
-    riderLeft = '560px';
-    riderTop = '240px';
-  } else {
-    riderLeft = '40px';
-    riderTop = '240px';
-  }
+  const getStatusSubtitle = () => {
+    if (currentStatus === 'Out for Delivery') return `${riderName} is on the way to deliver your order`;
+    if (currentStatus === 'Delivered') return 'Your food package has been handed over successfully';
+    return `${riderName} is at the restaurant, and is about to pick your order`;
+  };
+
+  const riderLeftPx = `${30 + riderProgress * 480}px`;
 
   return (
     <div
@@ -470,13 +300,13 @@ export const OrderTrackingModal = ({ order, onClose }) => {
         left: 0,
         width: '100%',
         height: '100%',
-        background: 'rgba(15, 23, 42, 0.75)',
-        backdropFilter: 'blur(6px)',
+        background: 'rgba(15, 23, 42, 0.85)',
+        backdropFilter: 'blur(8px)',
         zIndex: 20005,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: '16px',
+        padding: '12px',
         boxSizing: 'border-box'
       }}
     >
@@ -484,444 +314,314 @@ export const OrderTrackingModal = ({ order, onClose }) => {
         onClick={(e) => e.stopPropagation()}
         style={{
           width: '100%',
-          maxWidth: '680px',
-          maxHeight: '92vh',
-          background: '#ffffff',
-          borderRadius: '24px',
+          maxWidth: '460px',
+          height: '92vh',
+          maxHeight: '840px',
+          background: '#f8fafc',
+          borderRadius: '28px',
           overflow: 'hidden',
           display: 'flex',
           flexDirection: 'column',
-          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
-          animation: 'fadeInUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)'
+          boxShadow: '0 25px 60px -15px rgba(0, 0, 0, 0.4)',
+          position: 'relative'
         }}
       >
-        {/* Header Bar */}
-        <header
+        {/* SWIGGY FLOATING TOP HEADER */}
+        <div
           style={{
-            padding: '16px 20px',
-            background: 'linear-gradient(135deg, #2D3F76, #1E2B52)',
-            color: '#ffffff',
+            position: 'absolute',
+            top: '16px',
+            left: '16px',
+            right: '16px',
+            background: 'rgba(255, 255, 255, 0.96)',
+            backdropFilter: 'blur(10px)',
+            borderRadius: '20px',
+            padding: '10px 16px',
             display: 'flex',
+            alignItems: 'center',
             justifyContent: 'space-between',
-            alignItems: 'center'
+            boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
+            zIndex: 20
           }}
         >
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ fontSize: '18px' }}>📍</span>
-              <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '800', letterSpacing: '0.3px' }}>
-                Live Order Tracking
-              </h3>
-            </div>
-            <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.7)', fontWeight: '600' }}>
-              Order ID: <strong style={{ color: '#4CA687' }}>{orderId}</strong>
+          <button
+            onClick={onClose}
+            style={{
+              background: '#f1f5f9',
+              border: 'none',
+              width: '34px',
+              height: '34px',
+              borderRadius: '50%',
+              fontSize: '18px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#0f172a'
+            }}
+          >
+            ←
+          </button>
+
+          <div style={{ textAlign: 'center' }}>
+            <h4 style={{ margin: 0, fontSize: '15px', fontWeight: '900', color: '#0f172a' }}>
+              {restaurantName}
+            </h4>
+            <span style={{ fontSize: '11px', color: '#64748b', fontWeight: '600' }}>
+              03:36 PM • {itemCount} Items
             </span>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <button
-              onClick={() => setShowKeyInput(!showKeyInput)}
-              style={{
-                background: 'rgba(255,255,255,0.15)',
-                border: '1px solid rgba(255,255,255,0.2)',
-                color: '#fff',
-                padding: '4px 10px',
-                borderRadius: '8px',
-                fontSize: '11px',
-                fontWeight: '700',
-                cursor: 'pointer'
-              }}
-            >
-              🔑 API Key
-            </button>
-            <button
-              onClick={onClose}
-              style={{
-                background: 'rgba(255,255,255,0.2)',
-                border: 'none',
-                color: '#fff',
-                width: '32px',
-                height: '32px',
-                borderRadius: '50%',
-                fontSize: '16px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}
-            >
-              ✕
-            </button>
-          </div>
-        </header>
+          <button
+            onClick={() => setShowKeyInput(!showKeyInput)}
+            style={{
+              background: '#f1f5f9',
+              border: 'none',
+              width: '34px',
+              height: '34px',
+              borderRadius: '50%',
+              fontSize: '14px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+          >
+            •••
+          </button>
+        </div>
 
-        {/* API Key Modal / Form Bar */}
+        {/* API Key Form Bar */}
         {showKeyInput && (
-          <div style={{ background: '#f8fafc', padding: '12px 20px', borderBottom: '1px solid #e2e8f0', display: 'flex', gap: '8px' }}>
+          <div style={{ position: 'absolute', top: '70px', left: '16px', right: '16px', background: '#ffffff', padding: '10px', borderRadius: '12px', boxShadow: '0 8px 20px rgba(0,0,0,0.15)', zIndex: 25, display: 'flex', gap: '6px' }}>
             <input
               type="text"
-              placeholder="Paste Google Maps JavaScript API Key..."
+              placeholder="Paste Google Maps Key..."
               value={apiKey}
               onChange={(e) => setApiKey(e.target.value)}
-              style={{ flex: 1, padding: '8px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '12px', outline: 'none' }}
+              style={{ flex: 1, padding: '6px 10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '11px', outline: 'none' }}
             />
             <button
               onClick={handleSaveApiKey}
-              style={{ background: '#4CA687', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: '8px', fontSize: '12px', fontWeight: '700', cursor: 'pointer' }}
+              style={{ background: '#f97316', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: '700', cursor: 'pointer' }}
             >
-              Save Key
+              Save
             </button>
           </div>
         )}
 
-        {/* Map Container */}
-        <div style={{ position: 'relative', height: '400px', background: '#e2e8f0', width: '100%', overflow: 'hidden' }}>
+        {/* MAP CANVAS */}
+        <div style={{ flex: 1, position: 'relative', background: '#e2e8f0', width: '100%' }}>
           {mapsLoaded && !mapsError ? (
             <div ref={mapRef} style={{ width: '100%', height: '100%' }} />
           ) : (
-            /* Interactive Simulated Route Canvas / SVG when Google Maps API Key is pending */
+            /* SWIGGY STYLE MAP SVG VIEW WHEN API KEY PENDING */
             <div
               style={{
                 width: '100%',
                 height: '100%',
-                background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
+                background: '#e5e7eb',
                 position: 'relative',
-                display: 'flex',
-                flexDirection: 'column',
-                justifyContent: 'space-between',
-                padding: '16px',
-                boxSizing: 'border-box',
                 overflow: 'hidden'
               }}
             >
-              {/* Zoom Wrapper for Fallback SVG View */}
-              <div
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  transform: `scale(${1 + (zoom - 13) * 0.15})`,
-                  transformOrigin: 'center',
-                  transition: 'transform 0.3s cubic-bezier(0.16, 1, 0.3, 1)'
-                }}
-              >
-                <svg style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none' }}>
-                  {/* Curved Path */}
-                  <path
-                    d="M 60 300 Q 220 100, 440 300"
-                    fill="none"
-                    stroke="#4CA687"
-                    strokeWidth="4"
-                    strokeDasharray="8 6"
-                    style={{ animation: 'dash 15s linear infinite' }}
-                  />
-                </svg>
+              <svg style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none' }}>
+                {/* Roads Background */}
+                <rect width="100%" height="100%" fill="#f1f5f9" />
+                <path d="M 60 0 V 800 M 180 0 V 800 M 320 0 V 800" stroke="#ffffff" strokeWidth="22" />
+                <path d="M 0 160 H 600 M 0 340 H 600 M 0 520 H 600" stroke="#ffffff" strokeWidth="22" />
 
-                {/* Restaurant Node */}
-                <div style={{ position: 'absolute', top: '220px', left: '40px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                  <div style={{ background: '#ffffff', color: '#1e293b', padding: '4px 8px', borderRadius: '6px', fontSize: '9px', fontWeight: '800', border: '1px solid rgba(0,0,0,0.15)', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', marginBottom: '6px', whiteSpace: 'nowrap', zIndex: 3 }}>
-                    Avantika Restaurant (Bhagwanpura)
-                  </div>
-                  <div style={{ background: '#ef4444', color: '#fff', width: '36px', height: '36px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', boxShadow: '0 4px 12px rgba(239,68,68,0.4)' }}>
-                    🏪
-                  </div>
+                {/* Bright Orange Route Path */}
+                <path
+                  d="M 60 220 L 180 220 L 180 480 L 340 480"
+                  fill="none"
+                  stroke="#f97316"
+                  strokeWidth="7"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+
+              {/* Restaurant Pin Tag */}
+              <div style={{ position: 'absolute', top: '190px', left: '30px', display: 'flex', flexDirection: 'column', alignItems: 'center', zIndex: 10 }}>
+                <div style={{ background: '#ffffff', color: '#0f172a', padding: '4px 10px', borderRadius: '8px', fontSize: '11px', fontWeight: '900', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', marginBottom: '4px', whiteSpace: 'nowrap' }}>
+                  {restaurantName}
                 </div>
-
-                {/* Delivery Rider Node */}
-                <div style={{ position: 'absolute', top: riderTop, left: riderLeft, display: 'flex', flexDirection: 'column', alignItems: 'center', transform: 'translate(-50%, -50%)', transition: 'left 1s linear, top 1s linear', zIndex: 5 }}>
-                  <div style={{ background: '#3b82f6', color: '#ffffff', padding: '4px 8px', borderRadius: '6px', fontSize: '9px', fontWeight: '800', boxShadow: '0 2px 4px rgba(59,130,246,0.3)', marginBottom: '6px', whiteSpace: 'nowrap' }}>
-                    Rider: Ramesh ({currentStatus === 'Out for Delivery' ? `${(riderProgress * 100).toFixed(0)}% En Route` : currentStatus})
-                  </div>
-                  <div style={{ background: '#3b82f6', color: '#fff', width: '42px', height: '42px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '22px', boxShadow: '0 0 0 6px rgba(59,130,246,0.3)', animation: 'pulse 2s infinite' }}>
-                    🛵
-                  </div>
-                </div>
-
-                {/* Customer Node */}
-                <div style={{ position: 'absolute', top: '220px', right: '40px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                  <div style={{ background: '#ffffff', color: '#1e293b', padding: '4px 8px', borderRadius: '6px', fontSize: '9px', fontWeight: '800', border: '1px solid rgba(0,0,0,0.15)', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', marginBottom: '6px', whiteSpace: 'nowrap', zIndex: 3 }}>
-                    Your Location (Shalimar Nagar)
-                  </div>
-                  <div style={{ background: '#10b981', color: '#fff', width: '36px', height: '36px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', boxShadow: '0 4px 12px rgba(16,185,129,0.4)' }}>
-                    🏠
-                  </div>
+                <div style={{ background: '#0f172a', color: '#fff', width: '36px', height: '36px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px' }}>
+                  🏪
                 </div>
               </div>
 
-              {/* Info Overlay Tag */}
-              <div style={{ background: 'rgba(15, 23, 42, 0.85)', backdropFilter: 'blur(8px)', border: '1px solid rgba(255,255,255,0.1)', padding: '8px 14px', borderRadius: '12px', color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: 'fit-content', zIndex: 2 }}>
-                <span style={{ fontSize: '11px', color: '#94a3b8' }}>Google Maps Mode:</span>
-                <span style={{ fontSize: '11px', fontWeight: '800', color: '#4CA687', marginLeft: '6px' }}>
-                  {apiKey ? 'API Active' : 'Polyline Mode (Click 🔑 API Key above to embed)'}
-                </span>
+              {/* Live Delivery Rider Vehicle */}
+              <div style={{ position: 'absolute', top: '200px', left: riderLeftPx, transform: 'translate(-50%, -50%)', transition: 'left 1s linear', zIndex: 12 }}>
+                <div style={{ background: '#ef4444', color: '#ffffff', width: '42px', height: '42px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '22px', boxShadow: '0 4px 16px rgba(239,68,68,0.4)', border: '3px solid #ffffff' }}>
+                  🛵
+                </div>
+              </div>
+
+              {/* Customer Destination Pin */}
+              <div style={{ position: 'absolute', top: '450px', left: '310px', display: 'flex', flexDirection: 'column', alignItems: 'center', zIndex: 10 }}>
+                <div style={{ background: '#ffffff', color: '#0f172a', padding: '4px 10px', borderRadius: '8px', fontSize: '11px', fontWeight: '900', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', marginBottom: '4px', whiteSpace: 'nowrap' }}>
+                  To Office | Customer Address
+                </div>
+                <div style={{ background: '#10b981', color: '#fff', width: '36px', height: '36px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px' }}>
+                  🏠
+                </div>
               </div>
             </div>
           )}
-
-          {/* Floating Zoom In & Zoom Out Controls */}
-          <div
-            style={{
-              position: 'absolute',
-              right: '12px',
-              top: '12px',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '6px',
-              zIndex: 10
-            }}
-          >
-            <button
-              onClick={handleZoomIn}
-              title="Zoom In"
-              style={{
-                width: '32px',
-                height: '32px',
-                borderRadius: '8px',
-                background: '#ffffff',
-                border: '1px solid rgba(0,0,0,0.15)',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.15)',
-                fontSize: '18px',
-                fontWeight: '700',
-                color: '#334155',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                transition: 'background 0.2s, transform 0.1s'
-              }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = '#f1f5f9'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = '#ffffff'; }}
-            >
-              +
-            </button>
-            <button
-              onClick={handleZoomOut}
-              title="Zoom Out"
-              style={{
-                width: '32px',
-                height: '32px',
-                borderRadius: '8px',
-                background: '#ffffff',
-                border: '1px solid rgba(0,0,0,0.15)',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.15)',
-                fontSize: '18px',
-                fontWeight: '700',
-                color: '#334155',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                transition: 'background 0.2s, transform 0.1s'
-              }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = '#f1f5f9'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = '#ffffff'; }}
-            >
-              −
-            </button>
-          </div>
-
-          {/* Floating Route distance & time overlay */}
-          <div
-            style={{
-              position: 'absolute',
-              bottom: '12px',
-              left: '12px',
-              right: '12px',
-              background: 'rgba(255, 255, 255, 0.95)',
-              backdropFilter: 'blur(8px)',
-              borderRadius: '16px',
-              padding: '10px 16px',
-              boxShadow: '0 10px 25px rgba(0,0,0,0.15)',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              zIndex: 3
-            }}
-          >
-            <div>
-              <span style={{ fontSize: '10px', textTransform: 'uppercase', color: '#64748b', fontWeight: '700', letterSpacing: '0.5px' }}>
-                Distance Path
-              </span>
-              <h4 style={{ margin: 0, fontSize: '15px', color: '#0f172a', fontWeight: '800' }}>
-                📏 {distanceText} (Est. {durationText})
-              </h4>
-            </div>
-            <span
-              style={{
-                background: '#dcfce7',
-                color: '#15803d',
-                padding: '4px 10px',
-                borderRadius: '20px',
-                fontSize: '11px',
-                fontWeight: '800',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px'
-              }}
-            >
-              <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#22c55e', display: 'inline-block' }}></span>
-              Live Route
-            </span>
-          </div>
         </div>
 
-        {/* Modal Body / Status Stepper & Delivery Boy Info */}
-        <div style={{ padding: '20px', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '20px' }}>
-
-            {/* Assigned Delivery Boy Details Card */}
-            {trackingData?.deliveryBoy && (
-              <div
-                style={{
-                  background: 'linear-gradient(135deg, #f8fafc, #edf2f7)',
-                  borderRadius: '16px',
-                  padding: '14px 16px',
-                  border: '1px solid #e2e8f0',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between'
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <div
-                    style={{
-                      width: '44px',
-                      height: '44px',
-                      borderRadius: '50%',
-                      background: '#4CA687',
-                      color: '#fff',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: '20px',
-                      fontWeight: '800',
-                      boxShadow: '0 4px 10px rgba(76,166,135,0.3)'
-                    }}
-                  >
-                    {trackingData.deliveryBoy.name ? trackingData.deliveryBoy.name.charAt(0) : '🛵'}
-                  </div>
-                  <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <h4 style={{ margin: 0, fontSize: '14px', fontWeight: '800', color: '#1e293b' }}>
-                        {trackingData.deliveryBoy.name || 'Delivery Executive'}
-                      </h4>
-                      <span style={{ background: '#3b82f6', color: '#fff', fontSize: '9px', fontWeight: '800', padding: '1px 6px', borderRadius: '4px' }}>
-                        {trackingData.deliveryBoy.vehicleType || 'Bike'}
-                      </span>
-                    </div>
-                    <p style={{ margin: '2px 0 0 0', fontSize: '11px', color: '#64748b', fontWeight: '600' }}>
-                      Vehicle: {trackingData.deliveryBoy.vehicleNumber || 'RJ-14-DB-2026'}
-                    </p>
-                  </div>
-                </div>
-
-                {trackingData.deliveryBoy.phone && (
-                  <a
-                    href={`tel:${trackingData.deliveryBoy.phone}`}
-                    style={{
-                      background: '#4CA687',
-                      color: '#ffffff',
-                      padding: '8px 14px',
-                      borderRadius: '10px',
-                      textDecoration: 'none',
-                      fontSize: '12px',
-                      fontWeight: '800',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                      boxShadow: '0 4px 12px rgba(76,166,135,0.25)'
-                    }}
-                  >
-                    📞 Call
-                  </a>
-                )}
+        {/* SWIGGY FLOATING BOTTOM STATUS CARD */}
+        <div
+          style={{
+            background: '#ffffff',
+            borderRadius: '24px',
+            padding: '18px 20px',
+            margin: '12px',
+            boxShadow: '0 -4px 24px rgba(0,0,0,0.1)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '14px',
+            zIndex: 20
+          }}
+        >
+          {/* Status Title & Green ETA Badge */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <div style={{ flex: 1, paddingRight: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '2px' }}>
+                <span style={{ color: '#059669', fontSize: '11px', fontWeight: '900', letterSpacing: '0.5px' }}>
+                  {currentStatus === 'Out for Delivery' ? '⚡ BEFORE TIME' : '✓ ON TIME'}
+                </span>
               </div>
-            )}
-
-            {/* Stepper Progress Timeline */}
-            <div>
-              <h4 style={{ margin: '0 0 14px 0', fontSize: '13px', fontWeight: '800', color: '#334155', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                Order Progress Status
-              </h4>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', position: 'relative', paddingLeft: '8px' }}>
-                {statusList.map((step, idx) => {
-                  const state = getStepState(step.key, idx);
-                  return (
-                    <div key={step.key} style={{ display: 'flex', gap: '14px', alignItems: 'flex-start', position: 'relative' }}>
-                      {/* Vertical connecting line */}
-                      {idx !== statusList.length - 1 && (
-                        <div
-                          style={{
-                            position: 'absolute',
-                            top: '24px',
-                            left: '11px',
-                            width: '2px',
-                            height: 'calc(100% + 4px)',
-                            background: state === 'completed' ? '#4CA687' : '#e2e8f0',
-                            transition: 'background 0.3s'
-                          }}
-                        />
-                      )}
-
-                      {/* Circle Indicator */}
-                      <div
-                        style={{
-                          width: '24px',
-                          height: '24px',
-                          borderRadius: '50%',
-                          background: state === 'completed' ? '#4CA687' : (state === 'active' ? '#3b82f6' : '#cbd5e1'),
-                          color: '#ffffff',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontSize: '11px',
-                          fontWeight: '800',
-                          zIndex: 2,
-                          boxShadow: state === 'active' ? '0 0 0 4px rgba(59,130,246,0.2)' : 'none'
-                        }}
-                      >
-                        {state === 'completed' ? '✓' : idx + 1}
-                      </div>
-
-                      <div style={{ flex: 1 }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <strong
-                            style={{
-                              fontSize: '13px',
-                              color: state === 'upcoming' ? '#94a3b8' : '#0f172a',
-                              fontWeight: state === 'active' ? '800' : '700'
-                            }}
-                          >
-                            {step.icon} {step.label}
-                          </strong>
-                          {state === 'active' && (
-                            <span style={{ fontSize: '10px', color: '#3b82f6', background: '#dbeafe', fontWeight: '800', padding: '2px 8px', borderRadius: '100px' }}>
-                              In Progress
-                            </span>
-                          )}
-                        </div>
-                        <p style={{ margin: '2px 0 0 0', fontSize: '11px', color: state === 'upcoming' ? '#cbd5e1' : '#64748b' }}>
-                          {step.desc}
-                        </p>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Delivery Address Box */}
-            <div style={{ background: '#f8fafc', borderRadius: '14px', padding: '12px 14px', border: '1px solid #e2e8f0' }}>
-              <span style={{ fontSize: '10px', textTransform: 'uppercase', color: '#64748b', fontWeight: '700', display: 'block', marginBottom: '4px' }}>
-                Delivering to Address:
-              </span>
-              <p style={{ margin: 0, fontSize: '12px', fontWeight: '600', color: '#1e293b', lineHeight: '1.4' }}>
-                📍 {trackingData?.deliveryAddress || (typeof order?.deliveryAddress === 'string' ? order.deliveryAddress : 'Customer Address')}
+              <h3 style={{ margin: '2px 0 4px 0', fontSize: '20px', fontWeight: '900', color: '#0f172a', letterSpacing: '-0.3px' }}>
+                {getStatusTitle()}
+              </h3>
+              <p style={{ margin: 0, fontSize: '12px', color: '#64748b', fontWeight: '500', lineHeight: 1.4 }}>
+                {getStatusSubtitle()}
               </p>
             </div>
-        </div>
 
+            {/* Green ETA Badge Pill */}
+            <div
+              style={{
+                backgroundColor: '#059669',
+                color: '#ffffff',
+                borderRadius: '16px',
+                padding: '8px 14px',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                minWidth: '56px',
+                boxShadow: '0 4px 12px rgba(5,150,105,0.3)'
+              }}
+            >
+              <span style={{ fontSize: '20px', fontWeight: '900', lineHeight: 1 }}>
+                {durationText.replace('mins', '').trim()}
+              </span>
+              <span style={{ fontSize: '10px', fontWeight: '700', textTransform: 'lowercase' }}>mins</span>
+            </div>
+          </div>
+
+          {/* Address & Instructions Bar */}
+          <div
+            style={{
+              fontSize: '12px',
+              fontWeight: '700',
+              color: '#475569',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '6px 0',
+              borderTop: '1px solid #f1f5f9'
+            }}
+          >
+            <span>Address & instructions ›</span>
+          </div>
+
+          {/* Rider Profile & Call/Message Actions */}
+          <div
+            style={{
+              display: 'flex',
+              justify: 'space-between',
+              alignItems: 'center',
+              paddingTop: '10px',
+              borderTop: '1px solid #f1f5f9'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div
+                style={{
+                  width: '40px',
+                  height: '40px',
+                  borderRadius: '50%',
+                  backgroundColor: '#f1f5f9',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '22px',
+                  border: '2px solid #e2e8f0'
+                }}
+              >
+                🧑‍✈️
+              </div>
+              <div>
+                <h4 style={{ margin: 0, fontSize: '14px', fontWeight: '800', color: '#0f172a' }}>
+                  {riderName}
+                </h4>
+                <span style={{ fontSize: '11px', color: '#64748b', fontWeight: '600' }}>
+                  Delivery Partner • {trackingData?.deliveryBoy?.vehicleNumber || 'RJ-14-DB'}
+                </span>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <a
+                href={`tel:${riderPhone}`}
+                title="Call Rider"
+                style={{
+                  width: '38px',
+                  height: '38px',
+                  borderRadius: '50%',
+                  backgroundColor: '#f1f5f9',
+                  color: '#0f172a',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  textDecoration: 'none',
+                  fontSize: '16px',
+                  fontWeight: '700',
+                  border: '1px solid #cbd5e1'
+                }}
+              >
+                📞
+              </a>
+              <a
+                href={`https://wa.me/${riderPhone.replace(/[^0-9]/g, '')}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                title="Message Rider"
+                style={{
+                  width: '38px',
+                  height: '38px',
+                  borderRadius: '50%',
+                  backgroundColor: '#f1f5f9',
+                  color: '#0f172a',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  textDecoration: 'none',
+                  fontSize: '16px',
+                  fontWeight: '700',
+                  border: '1px solid #cbd5e1'
+                }}
+              >
+                💬
+              </a>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
