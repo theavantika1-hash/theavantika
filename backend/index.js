@@ -30,12 +30,11 @@ const allowedOrigins = [
 
 const corsOptions = {
     origin: function (origin, callback) {
-        // Allow requests with no origin (like mobile apps or curl)
-        if (!origin) return callback(null, true);
-        if (allowedOrigins.indexOf(origin) !== -1) {
+        // Allow requests with no origin (mobile apps, curl, direct downloads) or local Wi-Fi IPs
+        if (!origin || origin.startsWith('http://localhost') || origin.startsWith('http://192.168.') || origin.startsWith('http://10.0.') || allowedOrigins.indexOf(origin) !== -1) {
             return callback(null, true);
         } else {
-            return callback(new Error('CORS policy: This origin is not allowed by CORS'));
+            return callback(null, true); // Allow external mobile device access cleanly
         }
     },
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
@@ -200,6 +199,6 @@ connectDB();
 
 
 
-app.listen(process.env.PORT || 45000, () => {
-    console.log(`Server is running on http://localhost:${process.env.PORT || 45000}`);
+app.listen(process.env.PORT || 45000, '0.0.0.0', () => {
+    console.log(`Server is running on http://0.0.0.0:${process.env.PORT || 45000}`);
 });
