@@ -192,7 +192,75 @@ export function OrderMapView({
     };
   };
 
-  const riderPos = getScreenPos(currentRiderLat, currentRiderLng);
+  // Polyline decoder to convert Google Directions polyline string into lat/lng points
+  const decodePolyline = (encoded: string): Array<{ lat: number; lng: number }> => {
+    const points: Array<{ lat: number; lng: number }> = [];
+    let index = 0;
+    let lat = 0;
+    let lng = 0;
+
+    while (index < encoded.length) {
+      let b: number;
+      let shift = 0;
+      let result = 0;
+
+      do {
+        b = encoded.charCodeAt(index++) - 63;
+        result |= (b & 0x1f) << shift;
+        shift += 5;
+      } while (b >= 0x20);
+
+      const dlat = (result & 1) !== 0 ? ~(result >> 1) : result >> 1;
+      lat += dlat;
+
+      shift = 0;
+      result = 0;
+
+      do {
+        b = encoded.charCodeAt(index++) - 63;
+        result |= (b & 0x1f) << shift;
+        shift += 5;
+      } while (b >= 0x20);
+
+      const dlng = (result & 1) !== 0 ? ~(result >> 1) : result >> 1;
+      lng += dlng;
+
+      points.push({ lat: lat / 1e5, lng: lng / 1e5 });
+    }
+
+    return points;
+  };
+
+  // Calculate closest coordinate on the road polyline path to snap rider marker
+  const snapToRoadPolyline = (lat: number, lng: number, polylineStr: string): { lat: number; lng: number } => {
+    if (!polylineStr) return { lat, lng };
+    try {
+      const points = decodePolyline(polylineStr);
+      if (!points || points.length === 0) return { lat, lng };
+
+      let minDistanceSq = Infinity;
+      let closestPoint = points[0];
+
+      for (let i = 0; i < points.length; i++) {
+        const dLat = points[i].lat - lat;
+        const dLng = points[i].lng - lng;
+        const distSq = dLat * dLat + dLng * dLng;
+
+        if (distSq < minDistanceSq) {
+          minDistanceSq = distSq;
+          closestPoint = points[i];
+        }
+      }
+
+      return closestPoint;
+    } catch (e) {
+      return { lat, lng };
+    }
+  };
+
+  // Snapped Rider Coordinates locked 100% directly onto the road map line
+  const snappedRiderCoords = snapToRoadPolyline(currentRiderLat, currentRiderLng, encodedPolyline);
+  const riderPos = getScreenPos(snappedRiderCoords.lat, snappedRiderCoords.lng);
   const restPos = getScreenPos(restaurantLat, restaurantLng);
   const custPos = getScreenPos(customerLat, customerLng);
 
