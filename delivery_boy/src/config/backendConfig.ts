@@ -11,7 +11,7 @@ import { Platform } from 'react-native';
  * - iOS Simulator / Local Machine: 'http://localhost:45000'
  * - Live Production Server: 'https://api.yourdomain.com'
  */
-export const BACKEND_BASE_URL = 'http://192.168.31.19:45000';
+export const BACKEND_BASE_URL = 'https://theavantika.onrender.com';
 
 export const API_PREFIX = '/api/delivery-boy';
 
@@ -20,7 +20,7 @@ export const API_PREFIX = '/api/delivery-boy';
  */
 export const getApiBaseUrl = (): string => {
   const customUrl = BACKEND_BASE_URL ? BACKEND_BASE_URL.trim().replace(/\/+$/, '') : '';
-  
+
   if (customUrl) {
     return `${customUrl}${API_PREFIX}`;
   }
