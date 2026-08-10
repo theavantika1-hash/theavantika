@@ -341,7 +341,7 @@ export const CartDrawer = ({
                   className="cart-proceed-btn"
                   onClick={() => {
                     if (diningMode === 'delivery') {
-                      if (!userLocation || !savedAddresses || savedAddresses.length === 0) {
+                      if (!userLocation) {
                         setShowAddressSheet(true);
                       } else {
                         setCheckoutStep('payment');
@@ -352,7 +352,7 @@ export const CartDrawer = ({
                   }}
                 >
                   {diningMode === 'delivery'
-                    ? (userLocation && savedAddresses && savedAddresses.length > 0 ? 'Continue To Payment' : 'Proceed To Checkout')
+                    ? (userLocation ? 'Continue To Payment' : 'Proceed To Checkout')
                     : 'Proceed to Pay'}
                 </button>
               </>

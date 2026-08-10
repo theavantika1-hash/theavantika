@@ -19,7 +19,7 @@
 .customization-sheet {
   background-color: var(--bg-page, #ffffff);
   width: 100%;
-  max-width: 520px;
+  max-width: 640px;
   height: 85vh;
   border-radius: 28px 28px 0 0;
   display: flex;

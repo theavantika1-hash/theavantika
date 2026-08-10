@@ -182,20 +182,20 @@ const getOrderTrackingInfo = async (orderId) => {
         throw new Error("Order not found");
     }
 
-    // Default Restaurant Coordinates (Avantika Central Kitchen / Restaurant, Jaipur HQ)
+    // Default Restaurant Coordinates (SH 25, near Telco circle, Bhagwanpura, Alwar)
     const restaurantLocation = {
         name: "Avantika Restaurant",
-        address: "MI Road, City Centre, Jaipur, Rajasthan",
-        latitude: 26.9124,
-        longitude: 75.7873,
+        address: "SH 25, near Telco circle, Bhagwanpura, Alwar, Rajasthan 301001",
+        latitude: 27.596704286992576,
+        longitude: 76.63211439999625,
         phone: "+91 98290 12345"
     };
 
     // User / Delivery Address & Coordinates
     let userLocation = {
         address: typeof order.deliveryAddress === 'string' ? order.deliveryAddress : (order.deliveryAddress?.address || "Customer Delivery Address"),
-        latitude: 26.9220,
-        longitude: 75.8000
+        latitude: 27.596704286992576,
+        longitude: 76.63211439999625
     };
 
     if (order.deliveryAddress && typeof order.deliveryAddress === 'object') {
@@ -216,7 +216,7 @@ const getOrderTrackingInfo = async (orderId) => {
                 vehicleType: dboy.vehicleType || 'Bike',
                 vehicleNumber: dboy.vehicleNumber || 'RJ-14-DB-2026',
                 profileImage: dboy.profileImage,
-                location: (dboy.location && dboy.location.latitude && dboy.location.longitude) ? dboy.location : { latitude: 26.9170, longitude: 75.7940, address: "En route" },
+                location: (dboy.location && dboy.location.latitude && dboy.location.longitude) ? dboy.location : { latitude: 27.6225, longitude: 76.6443, address: "En route" },
                 isOnline: dboy.isOnline
             };
         }

@@ -36,21 +36,21 @@ export const LiveTrackingModal = ({ order, onClose }) => {
           deliveryAddress: typeof order?.deliveryAddress === 'string' ? order.deliveryAddress : 'Jaipur City Center',
           restaurantLocation: {
             name: 'Avantika Restaurant',
-            address: 'MI Road, Jaipur',
-            latitude: 26.9124,
-            longitude: 75.7873
+            address: 'SH 25, near Telco circle, Bhagwanpura, Alwar, Rajasthan 301001',
+            latitude: 27.596704286992576,
+            longitude: 76.63211439999625
           },
           userLocation: {
             address: typeof order?.deliveryAddress === 'string' ? order.deliveryAddress : 'Customer Address',
-            latitude: 26.9220,
-            longitude: 75.8000
+            latitude: 27.6186,
+            longitude: 76.6346
           },
           deliveryBoy: {
             name: 'Vikram Singh',
             phone: '+91 98112 34567',
             vehicleType: 'Bike',
             vehicleNumber: 'RJ-14-DB-9944',
-            location: { latitude: 26.9180, longitude: 75.7950, address: 'Near Railway Station Road', lastUpdated: new Date() }
+            location: { latitude: 27.6225, longitude: 76.6443, address: 'Near Telco Circle', lastUpdated: new Date() }
           }
         });
       }
@@ -64,21 +64,21 @@ export const LiveTrackingModal = ({ order, onClose }) => {
         deliveryAddress: typeof order?.deliveryAddress === 'string' ? order.deliveryAddress : 'Jaipur City Center',
         restaurantLocation: {
           name: 'Avantika Restaurant',
-          address: 'MI Road, Jaipur',
-          latitude: 26.9124,
-          longitude: 75.7873
+          address: 'SH 25, near Telco circle, Bhagwanpura, Alwar, Rajasthan 301001',
+          latitude: 27.596704286992576,
+          longitude: 76.63211439999625
         },
         userLocation: {
           address: typeof order?.deliveryAddress === 'string' ? order.deliveryAddress : 'Customer Address',
-          latitude: 26.9220,
-          longitude: 75.8000
+          latitude: 27.6186,
+          longitude: 76.6346
         },
         deliveryBoy: {
           name: 'Vikram Singh',
           phone: '+91 98112 34567',
           vehicleType: 'Bike',
           vehicleNumber: 'RJ-14-DB-9944',
-          location: { latitude: 26.9180, longitude: 75.7950, address: 'Near Railway Station Road', lastUpdated: new Date() }
+          location: { latitude: 27.6225, longitude: 76.6443, address: 'Near Telco Circle', lastUpdated: new Date() }
         }
       });
     } finally {

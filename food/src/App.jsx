@@ -59,6 +59,23 @@ function App() {
   // Live Order Tracking State
   const [activeTrackingOrder, setActiveTrackingOrder] = useState(null)
 
+  const [lastTrackedOrder, setLastTrackedOrder] = useState(() => {
+    try {
+      const saved = localStorage.getItem('avantika_last_tracked_order');
+      return saved ? JSON.parse(saved) : null;
+    } catch (e) {
+      return null;
+    }
+  });
+
+  useEffect(() => {
+    if (activeTrackingOrder) {
+      setLastTrackedOrder(activeTrackingOrder);
+      localStorage.setItem('avantika_last_tracked_order', JSON.stringify(activeTrackingOrder));
+    }
+  }, [activeTrackingOrder]);
+
+
   // Location States
   const [showLocationPopup, setShowLocationPopup] = useState(false)
   const [showGoogleLocationPicker, setShowGoogleLocationPicker] = useState(false)
@@ -115,6 +132,13 @@ function App() {
     handleAuthSubmit,
     handleLogout
   } = useAuth()
+
+  useEffect(() => {
+    if (!isLoggedIn) {
+      setLastTrackedOrder(null);
+      localStorage.removeItem('avantika_last_tracked_order');
+    }
+  }, [isLoggedIn]);
 
   const [showEditProfileModal, setShowEditProfileModal] = useState(false)
   const [showPaymentMethodsModal, setShowPaymentMethodsModal] = useState(false)
@@ -1199,7 +1223,7 @@ function App() {
         }
         .address-sheet-panel {
           width: 100%;
-          max-width: 500px;
+          max-width: 640px;
           background: #ffffff;
           border-top-left-radius: 24px !important;
           border-top-right-radius: 24px !important;
@@ -1286,6 +1310,36 @@ function App() {
         @keyframes slideUpPanel {
           from { transform: translateY(100%); }
           to { transform: translateY(0); }
+        }
+        .floating-track-order-btn {
+          position: fixed;
+          bottom: 140px;
+          right: 24px;
+          background: linear-gradient(135deg, #fc8019 0%, #e25c38 100%);
+          color: #fff;
+          padding: 12px 20px;
+          border-radius: 50px;
+          box-shadow: 0 8px 24px rgba(252,128,25,0.4);
+          cursor: pointer;
+          z-index: 10000;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          font-weight: 800;
+          font-size: 13px;
+          border: 2px solid #ffffff;
+          transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .floating-track-order-btn:hover {
+          transform: scale(1.05);
+        }
+        @media (max-width: 768px) {
+          .floating-track-order-btn {
+            bottom: 120px;
+            right: 16px;
+            padding: 10px 16px;
+            font-size: 12px;
+          }
         }
       `}</style>
       <div className={`sticky-bottom-cart-bar ${cart.length > 0 && !showCartDrawer && diningMode ? 'visible' : ''}`}>
@@ -1774,6 +1828,15 @@ function App() {
           setSelectedAddressId('gps_google');
         }}
       />
+      {/* Floating Track Order Button */}
+      {isLoggedIn && diningMode && lastTrackedOrder && !activeTrackingOrder && (
+        <div
+          className="floating-track-order-btn"
+          onClick={() => setActiveTrackingOrder(lastTrackedOrder)}
+        >
+          🛵 Track Active Order
+        </div>
+      )}
     </>
   )
 }

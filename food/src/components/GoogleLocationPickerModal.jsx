@@ -230,7 +230,6 @@ export const GoogleLocationPickerModal = ({ isOpen, onClose, onSelectLocation })
 
   return (
     <div
-      onClick={onClose}
       style={{
         position: 'fixed',
         top: 0,
@@ -251,7 +250,7 @@ export const GoogleLocationPickerModal = ({ isOpen, onClose, onSelectLocation })
         onClick={(e) => e.stopPropagation()}
         style={{
           width: '100%',
-          maxWidth: '560px',
+          maxWidth: '680px',
           height: '88vh',
           background: '#ffffff',
           borderRadius: '24px',
