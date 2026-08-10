@@ -49,6 +49,7 @@ import MenuPage from './MenuPage'
 import WalletPage from './WalletPage'
 import InventoryPage from './InventoryPage'
 import LiveTrackingModal from './LiveTrackingModal'
+import AssignDeliveryPartnerModal from './AssignDeliveryPartnerModal'
 
 function App() {
   // ==========================================
@@ -67,6 +68,7 @@ function App() {
   const [selectedOrder, setSelectedOrder] = useState(null) // for order detail popup
   const [statusChangeOrder, setStatusChangeOrder] = useState(null) // for status changer popup
   const [trackingOrder, setTrackingOrder] = useState(null) // for Google Maps Live Tracking popup
+  const [assignPartnerOrder, setAssignPartnerOrder] = useState(null) // for assigning delivery partner popup
   const [notification, setNotification] = useState(null)
   const [revenueFilter, setRevenueFilter] = useState('monthly') // weekly, monthly
   const [mapFilter, setMapFilter] = useState('weekly') // weekly, monthly
@@ -526,6 +528,7 @@ function App() {
                     setSelectedOrder={setSelectedOrder}
                     setStatusChangeOrder={setStatusChangeOrder}
                     setTrackingOrder={setTrackingOrder}
+                    setAssignPartnerOrder={setAssignPartnerOrder}
                   />
                 )}
 
@@ -933,6 +936,29 @@ function App() {
             <LiveTrackingModal
               order={trackingOrder}
               onClose={() => setTrackingOrder(null)}
+            />
+          )}
+
+          {/* Admin Assign Delivery Partner Modal */}
+          {assignPartnerOrder && (
+            <AssignDeliveryPartnerModal
+              order={assignPartnerOrder}
+              onClose={() => setAssignPartnerOrder(null)}
+              showNotification={showNotification}
+              onAssignSuccess={(orderId, partner) => {
+                setOrders(prev => prev.map(o => {
+                  if (o.orderId === orderId || o._id === orderId) {
+                    return {
+                      ...o,
+                      deliveryBoy: partner,
+                      deliveryBoyId: partner?.id || partner?._id,
+                      deliveryBoyName: partner?.name,
+                      orderStatus: 'Assigned'
+                    };
+                  }
+                  return o;
+                }));
+              }}
             />
           )}
         </>

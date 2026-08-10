@@ -274,6 +274,17 @@ function App() {
             items: (ord.orderedItems || ord.items || []).map(i => `${i.quantity}x ${i.name}`).join(', ')
           }))
           setOrderHistory(formatted)
+
+          // Find active non-delivered order so tracking persists until delivered
+          const activeOrder = data.data.find(ord => {
+            const st = (ord.orderStatus || '').toLowerCase()
+            return st !== 'delivered' && st !== 'cancelled' && st !== 'served'
+          })
+
+          if (activeOrder) {
+            setLastTrackedOrder(activeOrder.orderId)
+            localStorage.setItem('avantika_last_tracked_order', activeOrder.orderId)
+          }
         }
       })
       .catch(err => console.log('Backend order history fetch error:', err))
@@ -349,9 +360,9 @@ function App() {
 
     const activeAddrObj = savedAddresses.find(a => (a.id === selectedAddressId || a._id === selectedAddressId))
     const isGuestFlow = diningMode === 'dine-in' || diningMode === 'pickup'
-    const custName = isGuestFlow ? (guestName || 'Valued Patron') : (activeAddrObj?.name || (loggedInUser?.name || loggedInUser?.user_name || 'Valued Patron'))
-    const custPhone = isGuestFlow ? (guestPhone || '9876543210') : (activeAddrObj?.phone || (loggedInUser?.phone || loggedInUser?.phone_number || profileMobile || '9876543210'))
-    const custEmail = isGuestFlow ? (guestEmail || '') : (loggedInUser?.email || profileEmail || '')
+    const custName = isGuestFlow ? (guestName || 'Valued Patron') : (loggedInUser?.name || loggedInUser?.user_name || profileName || activeAddrObj?.name || 'Valued Patron')
+    const custPhone = isGuestFlow ? (guestPhone || '9876543210') : (loggedInUser?.phone || loggedInUser?.phone_number || profileMobile || activeAddrObj?.phone || '9876543210')
+    const custEmail = isGuestFlow ? (guestEmail || '') : (loggedInUser?.email || profileEmail || activeAddrObj?.email || '')
 
     const orderPayload = {
       orderId: orderIdVal,
@@ -389,18 +400,28 @@ function App() {
       })
       const resData = await response.json()
       if (resData.success && resData.data) {
-        setPlacedOrderId(resData.data.orderId || orderIdVal)
+        const newOrderId = resData.data.orderId || orderIdVal
+        setPlacedOrderId(newOrderId)
+        setLastTrackedOrder(newOrderId)
+        localStorage.setItem('avantika_last_tracked_order', newOrderId)
+        setShowTrackingModal(true)
         const itemsSummaryStr = cart.map(item => `${item.quantity}x ${item.name}`).join(', ')
         setOrderHistory(prev => [
-          { id: resData.data.orderId || orderIdVal, date: new Date().toISOString().split('T')[0], total: `₹${grandTotalVal}`, status: 'Requested', items: itemsSummaryStr },
+          { id: newOrderId, date: new Date().toISOString().split('T')[0], total: `₹${grandTotalVal}`, status: 'Requested', items: itemsSummaryStr },
           ...prev
         ])
       } else {
         setPlacedOrderId(orderIdVal)
+        setLastTrackedOrder(orderIdVal)
+        localStorage.setItem('avantika_last_tracked_order', orderIdVal)
+        setShowTrackingModal(true)
       }
     } catch (err) {
       console.error('Error placing order API:', err)
       setPlacedOrderId(orderIdVal)
+      setLastTrackedOrder(orderIdVal)
+      localStorage.setItem('avantika_last_tracked_order', orderIdVal)
+      setShowTrackingModal(true)
     }
 
     setPaymentLoading(false)
