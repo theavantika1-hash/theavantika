@@ -8,6 +8,7 @@ import {
   Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { OrderMapView } from '../components/OrderMapView';
 
 interface OrderTrackingScreenProps {
   onBack?: () => void;
@@ -48,59 +49,15 @@ export function OrderTrackingScreen({
         bounces={false}
         contentContainerStyle={{ flexGrow: 1 }}
       >
-        {/* 2. MAP SECTION */}
+        {/* 2. DYNAMIC MAP SECTION */}
         <View style={trackingStyles.mapCanvasContainer}>
-          {/* Topographical Map Vector Representation */}
-          <View style={trackingStyles.mapCanvas}>
-            {/* Green Hills & Contours */}
-            <View style={trackingStyles.greenParkRegion} />
-            <View style={trackingStyles.hillContourA} />
-            <View style={trackingStyles.hillContourB} />
-
-            {/* Highway Lines */}
-            <View style={trackingStyles.highwayLineOrange} />
-
-            {/* Highway Badge Symbols */}
-            <View style={[trackingStyles.highwayBadge, { top: '15%', left: '6%' }]}>
-              <Text style={trackingStyles.highwayBadgeText}>80</Text>
-            </View>
-            <View style={[trackingStyles.highwayBadge, { bottom: '32%', left: '16%' }]}>
-              <Text style={trackingStyles.highwayBadgeText}>80</Text>
-            </View>
-
-            {/* Road Label Text */}
-            <Text style={[trackingStyles.roadLabel, { top: '20%', left: '8%' }]}>
-              Testing POS Restaurant
-            </Text>
-
-            {/* Red Pin for Restaurant */}
-            <View style={[trackingStyles.pinContainer, { top: '22%', left: '21%' }]}>
-              <Text style={{ fontSize: 24 }}>📍</Text>
-            </View>
-
-            {/* Route Connecting Line */}
-            <View style={trackingStyles.routeSegmentA} />
-            <View style={trackingStyles.routeSegmentB} />
-            <View style={trackingStyles.routeSegmentC} />
-
-            {/* Current Location Red Solid Dot */}
-            <View style={trackingStyles.currentLocationDot} />
-
-            {/* YOU ARE HERE! Dark Callout Badge */}
-            <View style={trackingStyles.darkCalloutBadge}>
-              <Text style={trackingStyles.calloutTitleText}>You are Here!</Text>
-              <Text style={trackingStyles.calloutSubtitleText}>NH5, Pluton Authorised Store</Text>
-              <View style={trackingStyles.calloutArrowDown} />
-            </View>
-
-            {/* Target Destination Ring Icon */}
-            <View style={trackingStyles.targetRingContainer}>
-              <View style={trackingStyles.targetRingOuter}>
-                <View style={trackingStyles.targetRingInner} />
-              </View>
-              <View style={trackingStyles.targetRingStem} />
-            </View>
-          </View>
+          <OrderMapView
+            orderNumber={orderNumber}
+            totalDistance={awayDistance}
+            timeRemaining={etaMins}
+            orderStatus="En Route to Customer"
+            onCenterLocation={() => Alert.alert('Location Centered', 'Map centered on live rider location.')}
+          />
         </View>
 
         {/* 3. WHITE SHEET OVERLAY */}

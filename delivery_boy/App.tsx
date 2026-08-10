@@ -68,11 +68,17 @@ function App() {
   });
   const [regDetails, setRegDetails] = useState<{ fullName: string; phone: string; email: string } | null>(null);
 
-  // Automatic App Permissions Request (Location & Post Notifications)
+  // Automatic App Permissions Request & Continuous GPS Location Streaming
   React.useEffect(() => {
     import('./src/utils/permissionHelper').then(({ requestAppPermissions }) => {
       requestAppPermissions().then((result) => {
         console.log('[App Permissions] Granted status:', result);
+      });
+    });
+
+    import('./src/services/locationService').then(({ startLiveLocationTracking }) => {
+      startLiveLocationTracking().then(() => {
+        console.log('[GPS Tracking] Continuous Live Location Streaming Started');
       });
     });
   }, []);
@@ -183,6 +189,7 @@ function App() {
         />
       ) : currentScreen === 'order_detail' ? (
         <OrderDetailScreen
+          userEmail={userEmail}
           onBack={() => setCurrentScreen('orders')}
           onNavigateToTracking={() => setCurrentScreen('order_tracking')}
         />

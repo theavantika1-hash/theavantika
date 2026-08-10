@@ -9,13 +9,18 @@ import {
   Modal,
   TextInput,
   TouchableWithoutFeedback,
+  PanResponder,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { mapCanvasStyles } from './MapScreen';
+import { OrderMapView } from '../components/OrderMapView';
+import { deliveryBoyApi } from '../config/api';
 
 interface OrderDetailScreenProps {
   onBack?: () => void;
   onNavigateToTracking?: () => void;
+  userEmail?: string;
+  riderName?: string;
   orderNumber?: string;
   customerName?: string;
   customerAddress?: string;
@@ -34,6 +39,8 @@ interface OrderDetailScreenProps {
 export function OrderDetailScreen({
   onBack,
   onNavigateToTracking,
+  userEmail,
+  riderName,
   orderNumber = 'Order #123546789',
   customerName = 'John Doe',
   customerAddress = '#421, Phase-II, UE, Ludhiana, India...',
@@ -51,7 +58,37 @@ export function OrderDetailScreen({
   const insets = useSafeAreaInsets();
   const [buttonState, setButtonState] = useState<'arrive' | 'picked_up' | 'delivered'>('arrive');
   const [isCancelModalVisible, setIsCancelModalVisible] = useState(false);
-  const [isExpandedSummary, setIsExpandedSummary] = useState(false);
+  const [sheetMode, setSheetMode] = useState<'minimized' | 'standard' | 'expanded'>('standard');
+
+  // Real Delivery Boy Rider Name State
+  const [realRiderName, setRealRiderName] = useState<string>(riderName || 'Delivery Executive (You)');
+
+  React.useEffect(() => {
+    if (userEmail) {
+      deliveryBoyApi.getProfile(userEmail).then(res => {
+        const name = res?.data?.fullName || res?.data?.name;
+        if (name) {
+          setRealRiderName(`${name} (You)`);
+        }
+      }).catch(() => {});
+    }
+  }, [userEmail]);
+
+  const sheetPanResponder = React.useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderRelease: (_, gestureState) => {
+        if (gestureState.dy > 40) {
+          // Dragged DOWN -> Minimize sheet to reveal complete map view
+          setSheetMode(prev => (prev === 'expanded' ? 'standard' : 'minimized'));
+        } else if (gestureState.dy < -40) {
+          // Dragged UP -> Expand sheet to show details
+          setSheetMode(prev => (prev === 'minimized' ? 'standard' : 'expanded'));
+        }
+      },
+    })
+  ).current;
 
   const [selectedReason, setSelectedReason] = useState<'contact' | 'distance' | 'other'>('distance');
   const [reasonText, setReasonText] = useState(
@@ -93,8 +130,8 @@ export function OrderDetailScreen({
     if (onBack) onBack();
   };
 
-  const toggleExpandSummary = () => {
-    setIsExpandedSummary((prev) => !prev);
+  const toggleSheetMode = () => {
+    setSheetMode(prev => (prev === 'minimized' ? 'standard' : prev === 'standard' ? 'minimized' : 'standard'));
   };
 
   return (
@@ -111,93 +148,66 @@ export function OrderDetailScreen({
 
         <Text style={detailStyles.headerTitleText}>{orderNumber}</Text>
 
-        <TouchableOpacity activeOpacity={0.7} onPress={toggleExpandSummary}>
+        <TouchableOpacity activeOpacity={0.7} onPress={() => setSheetMode(prev => prev === 'expanded' ? 'standard' : 'expanded')}>
           <Text style={detailStyles.headerMoreInfoText}>
-            {isExpandedSummary ? 'Support' : 'More Info'}
+            {sheetMode === 'expanded' ? 'Map View' : 'More Info'}
           </Text>
         </TouchableOpacity>
       </View>
 
       <View style={{ flex: 1, position: 'relative' }}>
-        {/* 2. MAP CANVAS BACKGROUND */}
+        {/* 2. DYNAMIC MAP VIEW */}
         <View style={StyleSheet.absoluteFill}>
-          <View style={mapCanvasStyles.mapCanvas}>
-            <View style={mapCanvasStyles.waterBody}>
-              <Text style={mapCanvasStyles.waterLabel}>BAY & HARBOR</Text>
-            </View>
-            <View style={mapCanvasStyles.gatePark}>
-              <Text style={mapCanvasStyles.parkLabel}>Gate Park</Text>
-            </View>
-            <View style={mapCanvasStyles.glenPark}>
-              <Text style={mapCanvasStyles.parkLabel}>GLEN PARK</Text>
-            </View>
-
-            {/* Highways & Grid */}
-            <View style={mapCanvasStyles.highway101} />
-            <View style={mapCanvasStyles.highway280} />
-            <View style={[mapCanvasStyles.roadGridHorizontal, { top: '25%' }]} />
-            <View style={[mapCanvasStyles.roadGridHorizontal, { top: '45%' }]} />
-            <View style={[mapCanvasStyles.roadGridHorizontal, { top: '65%' }]} />
-            <View style={[mapCanvasStyles.roadGridVertical, { left: '30%' }]} />
-            <View style={[mapCanvasStyles.roadGridVertical, { left: '60%' }]} />
-
-            <Text style={mapCanvasStyles.cityNameHeader}>San Francisco</Text>
-            <Text style={[mapCanvasStyles.districtTextBold, { top: '18%', left: '5%' }]}>MARINA</Text>
-            <Text style={[mapCanvasStyles.districtTextBold, { top: '30%', left: '48%' }]}>PACIFIC HEIGHTS</Text>
-            <Text style={[mapCanvasStyles.districtTextBold, { top: '24%', right: '5%' }]}>CHINATOWN</Text>
-            <Text style={[mapCanvasStyles.districtTextBold, { top: '38%', right: '5%' }]}>UNION SQUARE</Text>
-            <Text style={[mapCanvasStyles.districtTextBold, { top: '55%', left: '5%' }]}>RICHMOND DISTRICT</Text>
-
-            {/* Route Lines */}
-            <View style={mapCanvasStyles.routeLinePathA} />
-            <View style={mapCanvasStyles.routeLinePathB} />
-            <View style={mapCanvasStyles.routeLinePathC} />
-
-
-            {/* Pins */}
-            <View style={[mapCanvasStyles.pinContainer, { top: '18%', left: '12%' }]}>
-              <View style={mapCanvasStyles.pinRingOuter}><View style={mapCanvasStyles.pinDotInner} /></View>
-              <View style={mapCanvasStyles.pinStem} />
-            </View>
-            <View style={[mapCanvasStyles.pinContainer, { top: '32%', left: '44%' }]}>
-              <View style={mapCanvasStyles.pinRingOuter}><View style={mapCanvasStyles.pinDotInner} /></View>
-              <View style={mapCanvasStyles.pinStem} />
-            </View>
-
-            {/* Active Red Dot */}
-            <View style={[mapCanvasStyles.activeLocationRedCircle, { top: '40%', left: '48%' }]} />
-
-            {/* Bottom Right Target Button */}
-            {!isExpandedSummary && (
-              <TouchableOpacity style={detailStyles.mapTargetBtn} activeOpacity={0.8}>
-                <Text style={{ fontSize: 18 }}>🎯</Text>
-              </TouchableOpacity>
-            )}
-          </View>
+          <OrderMapView
+            orderNumber={orderNumber}
+            riderName={realRiderName}
+            customerName={customerName}
+            restaurantName={restaurantName}
+            restaurantAddress={restaurantAddress}
+            deliveryAddress={deliveryAddress}
+            totalDistance={`${totalDistance} km`}
+            timeRemaining={`${timeRemaining} mins`}
+            orderStatus={buttonState === 'arrive' ? 'Head to Restaurant' : buttonState === 'picked_up' ? 'Order Picked Up' : 'Delivered'}
+            onCenterLocation={() => Alert.alert('GPS Location Centered', 'Map view centered on current rider GPS location.')}
+            hideOverlayCard={true}
+          />
         </View>
 
-        {/* 3. SLIDING POPUP BOTTOM SHEET */}
+        {/* 3. SLIDING DRAGGABLE BOTTOM SHEET */}
         <View
           style={[
             detailStyles.bottomSheetPopupContainer,
-            isExpandedSummary ? detailStyles.bottomSheetFullExpanded : detailStyles.bottomSheetCollapsed,
+            sheetMode === 'expanded'
+              ? detailStyles.bottomSheetFullExpanded
+              : sheetMode === 'minimized'
+              ? detailStyles.bottomSheetMinimized
+              : detailStyles.bottomSheetCollapsed,
           ]}
         >
+          {/* DRAGGABLE HANDLE BAR AT TOP OF SHEET */}
+          <View {...sheetPanResponder.panHandlers} style={detailStyles.dragHandleTouchable}>
+            <TouchableOpacity onPress={toggleSheetMode} activeOpacity={0.7} style={detailStyles.dragHandleInner}>
+              <View style={detailStyles.dragHandleBar} />
+              <Text style={detailStyles.dragHintText}>
+                {sheetMode === 'minimized'
+                  ? '🗺️ Complete Map View (Swipe UP or Tap to Expand Details 🔼)'
+                  : sheetMode === 'expanded'
+                  ? '🔽 Swipe DOWN for Map View'
+                  : '🗺️ Drag DOWN for Complete Map View 🔽'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
           <ScrollView
             showsVerticalScrollIndicator={false}
             contentContainerStyle={{
               paddingHorizontal: 20,
-              paddingTop: 12,
+              paddingTop: 4,
               paddingBottom: Math.max(insets.bottom + 20, 30),
             }}
             bounces={false}
           >
-            {/* Drag Handle Bar (Toggles Expansion) */}
-            <TouchableOpacity onPress={toggleExpandSummary} activeOpacity={0.7}>
-              <View style={detailStyles.dragHandleBar} />
-            </TouchableOpacity>
-
-            {!isExpandedSummary ? (
+            {sheetMode !== 'expanded' ? (
               /* --- STANDARD COLLAPSED POPUP CONTENT --- */
               <>
                 {/* Customer & Price Row */}
@@ -604,7 +614,12 @@ const detailStyles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#F1F5F9',
-    zIndex: 10,
+    zIndex: 20,
+    elevation: 6,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
   headerBackBtn: {
     width: 36,
@@ -679,11 +694,32 @@ const detailStyles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 8,
   },
+  bottomSheetMinimized: {
+    top: '84%',
+  },
   bottomSheetCollapsed: {
-    top: '40%',
+    top: '42%',
   },
   bottomSheetFullExpanded: {
-    top: 0,
+    top: 64,
+  },
+  dragHandleTouchable: {
+    paddingTop: 10,
+    paddingBottom: 6,
+    paddingHorizontal: 20,
+    alignItems: 'center',
+  },
+  dragHandleInner: {
+    alignItems: 'center',
+    width: '100%',
+  },
+  dragHintText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#2563eb',
+    textAlign: 'center',
+    marginTop: 4,
+    marginBottom: 8,
   },
   dragHandleBar: {
     width: 48,
@@ -691,7 +727,6 @@ const detailStyles = StyleSheet.create({
     borderRadius: 2,
     backgroundColor: '#CBD5E1',
     alignSelf: 'center',
-    marginBottom: 16,
   },
   customerPriceRow: {
     flexDirection: 'row',

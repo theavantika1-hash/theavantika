@@ -10,6 +10,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { styles } from '../styles/appStyles';
 import { deliveryBoyApi } from '../config/api';
+import { OrderMapView } from '../components/OrderMapView';
 
 const { width } = Dimensions.get('window');
 
@@ -72,134 +73,17 @@ export function MapScreen({
         </View>
       )}
 
-      {/* MAP CANVAS VIEW */}
+      {/* DYNAMIC MAP VIEW */}
       <View style={styles.mapViewContainer}>
-        {/* Vector Stylized Map Background */}
-        <View style={mapCanvasStyles.mapCanvas}>
-          {/* Water Coastline Area */}
-          <View style={mapCanvasStyles.waterBody}>
-            <Text style={mapCanvasStyles.waterLabel}>BAY & HARBOR</Text>
-          </View>
-
-          {/* Green Parks */}
-          <View style={mapCanvasStyles.gatePark}>
-            <Text style={mapCanvasStyles.parkLabel}>Gate Park</Text>
-          </View>
-          <View style={mapCanvasStyles.glenPark}>
-            <Text style={mapCanvasStyles.parkLabel}>GLEN PARK</Text>
-          </View>
-
-          {/* Highways & Roads Grid */}
-          <View style={mapCanvasStyles.highway101} />
-          <View style={mapCanvasStyles.highway280} />
-          <View style={[mapCanvasStyles.roadGridHorizontal, { top: '25%' }]} />
-          <View style={[mapCanvasStyles.roadGridHorizontal, { top: '45%' }]} />
-          <View style={[mapCanvasStyles.roadGridHorizontal, { top: '65%' }]} />
-          <View style={[mapCanvasStyles.roadGridVertical, { left: '30%' }]} />
-          <View style={[mapCanvasStyles.roadGridVertical, { left: '60%' }]} />
-
-          {/* District Name Labels */}
-          <Text style={[mapCanvasStyles.districtText, { top: '12%', left: '42%' }]}>
-            MARINA DISTRICT
-          </Text>
-          <Text style={[mapCanvasStyles.districtText, { top: '19%', left: '46%' }]}>
-            PACIFIC HEIGHTS
-          </Text>
-          <Text style={[mapCanvasStyles.districtText, { top: '14%', right: '5%' }]}>
-            CHINATOWN
-          </Text>
-          <Text style={[mapCanvasStyles.districtText, { top: '20%', right: '5%' }]}>
-            UNION SQUARE
-          </Text>
-
-          {/* Large City Name Header */}
-          <Text style={mapCanvasStyles.cityNameHeader}>San Francisco</Text>
-
-          <Text style={[mapCanvasStyles.districtTextBold, { top: '30%', left: '5%' }]}>
-            RICHMOND DISTRICT
-          </Text>
-          <Text style={[mapCanvasStyles.districtTextBold, { top: '38%', left: '33%' }]}>
-            HAIGHT-ASHBURY
-          </Text>
-          <Text style={[mapCanvasStyles.districtTextBold, { top: '47%', left: '5%' }]}>
-            University of California
-          </Text>
-          <Text style={[mapCanvasStyles.districtTextBold, { top: '48%', right: '12%' }]}>
-            MISSION DISTRICT
-          </Text>
-          <Text style={[mapCanvasStyles.districtText, { top: '56%', left: '8%' }]}>
-            FOREST HILL
-          </Text>
-          <Text style={[mapCanvasStyles.districtText, { top: '55%', left: '48%' }]}>
-            NOE VALLEY
-          </Text>
-          <Text style={[mapCanvasStyles.districtTextBold, { top: '68%', right: '8%' }]}>
-            Silver
-          </Text>
-
-          {/* Highway Shield Badges */}
-          <View style={[mapCanvasStyles.shieldBadge, { top: '58%', right: '8%' }]}>
-            <Text style={mapCanvasStyles.shieldBadgeText}>101</Text>
-          </View>
-          <View style={[mapCanvasStyles.shieldBadge, { top: '64%', right: '4%' }]}>
-            <Text style={mapCanvasStyles.shieldBadgeText}>280</Text>
-          </View>
-
-          {/* ROUTE CONNECTING LINE */}
-          <View style={mapCanvasStyles.routeLinePathA} />
-          <View style={mapCanvasStyles.routeLinePathB} />
-          <View style={mapCanvasStyles.routeLinePathC} />
-          <View style={mapCanvasStyles.routeLinePathD} />
-
-          {/* MAP PINS & MARKERS */}
-          {/* Pin 1: Top Left */}
-          <View style={[mapCanvasStyles.pinContainer, { top: '39%', left: '33%' }]}>
-            <View style={mapCanvasStyles.pinRingOuter}>
-              <View style={mapCanvasStyles.pinDotInner} />
-            </View>
-            <View style={mapCanvasStyles.pinStem} />
-          </View>
-
-          {/* Pin 2: Haight Middle */}
-          <View style={[mapCanvasStyles.pinContainer, { top: '42%', left: '32%' }]}>
-            <View style={mapCanvasStyles.pinRingOuter}>
-              <View style={mapCanvasStyles.pinDotInner} />
-            </View>
-            <View style={mapCanvasStyles.pinStem} />
-          </View>
-
-          {/* Pin 3: University of CA */}
-          <View style={[mapCanvasStyles.pinContainer, { top: '48%', left: '37%' }]}>
-            <View style={mapCanvasStyles.pinRingOuter}>
-              <View style={mapCanvasStyles.pinDotInner} />
-            </View>
-            <View style={mapCanvasStyles.pinStem} />
-          </View>
-
-          {/* Pin 4: Haight Right */}
-          <View style={[mapCanvasStyles.pinContainer, { top: '43%', left: '49%' }]}>
-            <View style={mapCanvasStyles.pinRingOuter}>
-              <View style={mapCanvasStyles.pinDotInner} />
-            </View>
-            <View style={mapCanvasStyles.pinStem} />
-          </View>
-
-          {/* Pin 5: Mission Right */}
-          <View style={[mapCanvasStyles.pinContainer, { top: '50%', right: '28%' }]}>
-            <View style={mapCanvasStyles.pinRingOuter}>
-              <View style={mapCanvasStyles.pinDotInner} />
-            </View>
-            <View style={mapCanvasStyles.pinStem} />
-          </View>
-
-          {/* CURRENT ACTIVE LOCATION SOLID RED CIRCLE */}
-          <View style={[mapCanvasStyles.activeLocationRedCircle, { top: '57%', right: '23%' }]} />
-
-          {/* NUMBERED ROUTE MARKER (1) */}
-          <View style={[mapCanvasStyles.numberedMarkerCircle, { top: '62%', left: '5%' }]}>
-            <Text style={mapCanvasStyles.numberedMarkerText}>1</Text>
-          </View>
-        </View>
+        <OrderMapView
+          restaurantName="Avantika Restaurant"
+          restaurantAddress="SH 25, Bhagwanpura, Alwar"
+          deliveryAddress={locationText}
+          totalDistance={`${totalDistanceKm} km`}
+          timeRemaining="20 mins"
+          orderStatus={`${activeOrdersCount} Active Orders`}
+          onCenterLocation={handleCenterLocation}
+        />
 
         {/* FLOATING ACTION BUTTON: EXPAND MAP */}
         <TouchableOpacity

@@ -21,7 +21,7 @@ async function apiRequest<T = any>(endpoint: string, method = 'GET', data?: any)
     }
     return result;
   } catch (error: any) {
-    console.error(`[API Error] ${method} ${endpoint}:`, error.message);
+    console.warn(`[API Info] ${method} ${endpoint}:`, error?.message || error);
     throw error;
   }
 }
@@ -50,7 +50,7 @@ export const deliveryBoyApi = {
     otp: string;
   }) => apiRequest('/verify-otp', 'POST', payload),
 
-  getProfile: (id?: string) => apiRequest(id ? `/profile/${id}` : '/profile', 'GET'),
+  getProfile: (id?: string) => apiRequest(id ? `/profile/${encodeURIComponent(id)}` : '/profile', 'GET'),
 
   toggleStatus: (payload: { id?: string; isOnline: boolean }) => apiRequest('/status', 'POST', payload),
 

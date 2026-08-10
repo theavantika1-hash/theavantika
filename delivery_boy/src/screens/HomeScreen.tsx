@@ -105,34 +105,10 @@ export function HomeScreen({
   useEffect(() => {
     if (!isAvailable) return;
 
-    const sendCurrentLocation = () => {
-      const globalNav = typeof globalThis !== 'undefined' ? (globalThis as any).navigator : undefined;
-      if (globalNav && globalNav.geolocation) {
-        globalNav.geolocation.getCurrentPosition(
-          async (pos: any) => {
-            try {
-              await deliveryBoyApi.updateLocation({
-                latitude: pos.coords.latitude,
-                longitude: pos.coords.longitude,
-                address: currentLocationText || 'Live Delivery GPS Location'
-              });
-              console.log('[Delivery Boy GPS] Live Location updated to DB:', pos.coords.latitude, pos.coords.longitude);
-            } catch (err: any) {
-              console.error('Failed to update live GPS location:', err?.message || err);
-            }
-          },
-          (err: any) => {
-            console.log('GPS Geolocation info:', err?.message || err);
-          },
-          { enableHighAccuracy: true, timeout: 10000 }
-        );
-      }
-    };
-
-    sendCurrentLocation();
-    const interval = setInterval(sendCurrentLocation, 6000); // Send live GPS every 6 seconds
-    return () => clearInterval(interval);
-  }, [isAvailable, currentLocationText]);
+    import('../services/locationService').then(({ startLiveLocationTracking }) => {
+      startLiveLocationTracking();
+    });
+  }, [isAvailable]);
 
   // Handle Availability Toggle Switch with Database Update
   const handleToggleAvailable = async (val: boolean) => {

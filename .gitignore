@@ -8,6 +8,9 @@ dist/
 build/
 **/build/
 *.jsbundle
+*.apk
+**/uploads/*.apk
+**/public/*.apk
 
 # Environment variables & secrets
 .env

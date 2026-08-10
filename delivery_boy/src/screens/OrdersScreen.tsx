@@ -10,6 +10,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { styles } from '../styles/appStyles';
 import { MapScreen, mapCanvasStyles } from './MapScreen';
 import { deliveryBoyApi } from '../config/api';
+import { OrderMapView } from '../components/OrderMapView';
 
 interface OrderItem {
   id: string;
@@ -228,55 +229,17 @@ export function OrdersScreen({
           {activeSubTab === 'map' ? (
             <View style={styles.embeddedMapContainer}>
               <View style={styles.embeddedMapCanvas}>
-                {/* Map Graphics */}
-                <View style={mapCanvasStyles.mapCanvas}>
-                  <View style={mapCanvasStyles.waterBody}>
-                    <Text style={mapCanvasStyles.waterLabel}>BAY & HARBOR</Text>
-                  </View>
-                  <View style={mapCanvasStyles.gatePark}>
-                    <Text style={mapCanvasStyles.parkLabel}>Gate Park</Text>
-                  </View>
-                  <View style={mapCanvasStyles.glenPark}>
-                    <Text style={mapCanvasStyles.parkLabel}>GLEN PARK</Text>
-                  </View>
-
-                  {/* Highways & Roads */}
-                  <View style={mapCanvasStyles.highway101} />
-                  <View style={mapCanvasStyles.highway280} />
-                  <View style={[mapCanvasStyles.roadGridHorizontal, { top: '25%' }]} />
-                  <View style={[mapCanvasStyles.roadGridHorizontal, { top: '45%' }]} />
-                  <View style={[mapCanvasStyles.roadGridHorizontal, { top: '65%' }]} />
-                  <View style={[mapCanvasStyles.roadGridVertical, { left: '30%' }]} />
-                  <View style={[mapCanvasStyles.roadGridVertical, { left: '60%' }]} />
-
-                  <Text style={mapCanvasStyles.cityNameHeader}>San Francisco</Text>
-                  <Text style={[mapCanvasStyles.districtTextBold, { top: '30%', left: '5%' }]}>RICHMOND DISTRICT</Text>
-                  <Text style={[mapCanvasStyles.districtTextBold, { top: '38%', left: '33%' }]}>HAIGHT-ASHBURY</Text>
-                  <Text style={[mapCanvasStyles.districtTextBold, { top: '47%', left: '5%' }]}>University of California</Text>
-                  <Text style={[mapCanvasStyles.districtTextBold, { top: '48%', right: '12%' }]}>MISSION DISTRICT</Text>
-
-                  {/* Route Lines */}
-                  <View style={mapCanvasStyles.routeLinePathA} />
-                  <View style={mapCanvasStyles.routeLinePathB} />
-                  <View style={mapCanvasStyles.routeLinePathC} />
-                  <View style={mapCanvasStyles.routeLinePathD} />
-
-                  {/* Route Pins */}
-                  <View style={[mapCanvasStyles.pinContainer, { top: '39%', left: '33%' }]}>
-                    <View style={mapCanvasStyles.pinRingOuter}><View style={mapCanvasStyles.pinDotInner} /></View>
-                    <View style={mapCanvasStyles.pinStem} />
-                  </View>
-                  <View style={[mapCanvasStyles.pinContainer, { top: '42%', left: '32%' }]}>
-                    <View style={mapCanvasStyles.pinRingOuter}><View style={mapCanvasStyles.pinDotInner} /></View>
-                    <View style={mapCanvasStyles.pinStem} />
-                  </View>
-                  <View style={[mapCanvasStyles.pinContainer, { top: '48%', left: '37%' }]}>
-                    <View style={mapCanvasStyles.pinRingOuter}><View style={mapCanvasStyles.pinDotInner} /></View>
-                    <View style={mapCanvasStyles.pinStem} />
-                  </View>
-
-                  <View style={[mapCanvasStyles.activeLocationRedCircle, { top: '57%', right: '23%' }]} />
-                </View>
+                <OrderMapView
+                  restaurantName="Avantika Restaurant"
+                  restaurantAddress="SH 25, Bhagwanpura, Alwar"
+                  deliveryAddress="#744, UE, Phase-II, Alwar"
+                  totalDistance="3.5 km"
+                  timeRemaining="18 mins"
+                  orderStatus="Active Route Map"
+                  onCenterLocation={() => {
+                    if (onNavigateToMap) onNavigateToMap();
+                  }}
+                />
 
                 {/* Top Right Expand Icon Button */}
                 <TouchableOpacity
