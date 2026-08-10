@@ -1,11 +1,8 @@
-import { Platform } from 'react-native';
-
-const BASE_URL = Platform.OS === 'android'
-  ? 'http://10.0.2.2:45000/api/delivery-boy'
-  : 'http://localhost:45000/api/delivery-boy';
+import { getApiBaseUrl } from './backendConfig';
 
 async function apiRequest<T = any>(endpoint: string, method = 'GET', data?: any): Promise<T> {
-  const url = `${BASE_URL}${endpoint}`;
+  const baseUrl = getApiBaseUrl();
+  const url = `${baseUrl}${endpoint}`;
   try {
     const response = await fetch(url, {
       method,
