@@ -194,8 +194,8 @@ const getOrderTrackingInfo = async (orderId) => {
     // User / Delivery Address & Coordinates
     let userLocation = {
         address: typeof order.deliveryAddress === 'string' ? order.deliveryAddress : (order.deliveryAddress?.address || "Customer Delivery Address"),
-        latitude: 27.596704286992576,
-        longitude: 76.63211439999625
+        latitude: 27.6208,
+        longitude: 76.6436
     };
 
     if (order.deliveryAddress && typeof order.deliveryAddress === 'object') {

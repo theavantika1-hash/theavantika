@@ -232,7 +232,7 @@ export function OrderMapView({
 
         {/* DYNAMIC MAP OVERLAY PINS BASED ON REAL GPS COORDINATES */}
         {/* Restaurant Marker Pin */}
-        <View style={[styles.overlayPinWrapper, restPos]}>
+        <View style={[styles.overlayPinWrapper, restPos, { marginTop: -24 }]}>
           <View style={styles.pinTagBadge}>
             <Text style={styles.pinTagText} numberOfLines={1}>
               🏪 {restaurantName}
@@ -241,10 +241,10 @@ export function OrderMapView({
         </View>
 
         {/* Customer Marker Pin */}
-        <View style={[styles.overlayPinWrapper, custPos]}>
+        <View style={[styles.overlayPinWrapper, custPos, { marginTop: -24 }]}>
           <View style={[styles.pinTagBadge, { backgroundColor: '#10b981' }]}>
             <Text style={[styles.pinTagText, { color: '#ffffff' }]} numberOfLines={1}>
-              🏠 Customer Address
+              🏠 Customer ({customerName})
             </Text>
           </View>
         </View>
@@ -494,7 +494,7 @@ const styles = StyleSheet.create({
   overlayPinWrapper: {
     position: 'absolute',
     alignItems: 'center',
-    transform: [{ translateX: -40 }, { translateY: -20 }],
+    justifyContent: 'center',
     zIndex: 4,
   },
   riderLocationBeacon: {
