@@ -201,8 +201,8 @@ export function OrderMapView({
     ? `path=color:0xf97316ff%7Cweight:6%7Cenc:${encodeURIComponent(encodedPolyline)}`
     : `path=color:0xf97316ff%7Cweight:6%7C${currentRiderLat.toFixed(5)},${currentRiderLng.toFixed(5)}%7C${restaurantLat.toFixed(5)},${restaurantLng.toFixed(5)}%7C${customerLat.toFixed(5)},${customerLng.toFixed(5)}`;
 
-  // Google Maps Static API Map Image URL with Swiggy orange route path following real roads
-  const googleMapStaticUrl = `https://maps.googleapis.com/maps/api/staticmap?center=${effectiveCenterLat.toFixed(5)},${effectiveCenterLng.toFixed(5)}&zoom=${zoomLevel}&size=640x640&scale=2&maptype=${mapType}&markers=color:orange%7Clabel:D%7C${currentRiderLat.toFixed(5)},${currentRiderLng.toFixed(5)}&markers=color:red%7Clabel:R%7C${restaurantLat.toFixed(5)},${restaurantLng.toFixed(5)}&markers=color:green%7Clabel:C%7C${customerLat.toFixed(5)},${customerLng.toFixed(5)}&${pathParam}&key=${apiKey.trim()}`;
+  // Google Maps Static API Map Image URL with Swiggy orange route path starting at live blue dot
+  const googleMapStaticUrl = `https://maps.googleapis.com/maps/api/staticmap?center=${effectiveCenterLat.toFixed(5)},${effectiveCenterLng.toFixed(5)}&zoom=${zoomLevel}&size=640x640&scale=2&maptype=${mapType}&markers=color:red%7Clabel:R%7C${restaurantLat.toFixed(5)},${restaurantLng.toFixed(5)}&markers=color:green%7Clabel:C%7C${customerLat.toFixed(5)},${customerLng.toFixed(5)}&${pathParam}&key=${apiKey.trim()}`;
 
   const handleZoomIn = () => setZoomLevel(prev => Math.min(prev + 1, 18));
   const handleZoomOut = () => setZoomLevel(prev => Math.max(prev - 1, 10));
