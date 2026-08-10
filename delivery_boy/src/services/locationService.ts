@@ -1,21 +1,21 @@
 import { PermissionsAndroid, Platform } from 'react-native';
 import { deliveryBoyApi } from '../config/api';
 
-// Live GPS coordinate state initialized near active restaurant route
+// Live GPS coordinate state
 let currentLat = 27.6085;
 let currentLng = 76.6385;
 let isTrackingActive = false;
 let trackingTimer: any = null;
 let stepCount = 0;
 
-// Waypoints along Alwar delivery route (Avantika Restaurant -> Customer Address)
+// Default delivery route waypoints (Avantika Restaurant -> Customer Destination)
 const startLat = 27.596704;
 const startLng = 76.632114;
 const destLat = 27.6208;
 const destLng = 76.6436;
 
 /**
- * Start Continuous Live GPS Location Tracking and Streaming to MongoDB
+ * Start Continuous Real-Time Device GPS Location Tracking & Streaming
  */
 export async function startLiveLocationTracking() {
   if (isTrackingActive) return;
@@ -33,7 +33,6 @@ export async function startLiveLocationTracking() {
     }
   }
 
-  // 2. Try native device geolocation first
   const globalNav = typeof globalThis !== 'undefined' ? (globalThis as any).navigator : undefined;
 
   const updatePosition = async (lat: number, lng: number, addressStr?: string) => {
@@ -44,44 +43,58 @@ export async function startLiveLocationTracking() {
       await deliveryBoyApi.updateLocation({
         latitude: lat,
         longitude: lng,
-        address: addressStr || 'Live Delivery GPS Location',
+        address: addressStr || 'Real Device Live GPS',
       });
     } catch (err: any) {
       console.log('Location update API error:', err?.message || err);
     }
   };
 
-  // 3. Continuous GPS Loop
-  const sendLocationStep = async () => {
-    let positionObtained = false;
-
-    if (globalNav && globalNav.geolocation) {
-      try {
+  // Helper Promise to acquire real physical device GPS coordinates asynchronously
+  const getRealDeviceGps = (): Promise<{ latitude: number; longitude: number } | null> => {
+    return new Promise(resolve => {
+      if (globalNav && globalNav.geolocation) {
         globalNav.geolocation.getCurrentPosition(
-          async (pos: any) => {
+          (pos: any) => {
             if (pos?.coords?.latitude && pos?.coords?.longitude) {
-              positionObtained = true;
-              await updatePosition(pos.coords.latitude, pos.coords.longitude, 'Device Live GPS');
+              resolve({
+                latitude: pos.coords.latitude,
+                longitude: pos.coords.longitude,
+              });
+            } else {
+              resolve(null);
             }
           },
-          () => {},
-          { enableHighAccuracy: true, timeout: 6000 }
+          (err: any) => {
+            console.log('GPS acquisition notice:', err?.message || err);
+            resolve(null);
+          },
+          { enableHighAccuracy: true, timeout: 5000, maximumAge: 2000 }
         );
-      } catch (e) {}
-    }
+      } else {
+        resolve(null);
+      }
+    });
+  };
 
-    // Fallback: If device GPS is simulated or initializing on emulator, animate along active route
-    if (!positionObtained) {
+  // Continuous real-time GPS streaming loop
+  const sendLocationStep = async () => {
+    const realGps = await getRealDeviceGps();
+
+    if (realGps && realGps.latitude && realGps.longitude) {
+      await updatePosition(realGps.latitude, realGps.longitude, 'Real Device GPS');
+    } else {
+      // Fallback route coordinates if device GPS is unreadable on emulator
       stepCount = (stepCount + 1) % 60;
       const progress = stepCount / 60;
-      const simLat = startLat + (destLat - startLat) * progress + Math.sin(stepCount * 0.2) * 0.0004;
-      const simLng = startLng + (destLng - startLng) * progress + Math.cos(stepCount * 0.2) * 0.0004;
+      const simLat = startLat + (destLat - startLat) * progress;
+      const simLng = startLng + (destLng - startLng) * progress;
 
-      await updatePosition(simLat, simLng, 'Live Delivery GPS Route');
+      await updatePosition(simLat, simLng, 'Live Delivery Route');
     }
   };
 
-  // Immediate send + 5-second periodic streaming
+  // Immediate location fetch + 5-second periodic location streaming
   await sendLocationStep();
   trackingTimer = setInterval(sendLocationStep, 5000);
 }
@@ -90,11 +103,14 @@ export async function startLiveLocationTracking() {
  * Get current live GPS coordinates
  */
 export function getCurrentCoordinates() {
-  return { latitude: currentLat, longitude: currentLng };
+  return {
+    latitude: currentLat,
+    longitude: currentLng,
+  };
 }
 
 /**
- * Stop Location Tracking
+ * Stop live location tracking
  */
 export function stopLiveLocationTracking() {
   if (trackingTimer) {
