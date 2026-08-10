@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -147,6 +147,28 @@ export function OrderMapView({
     })
   ).current;
 
+  const [encodedPolyline, setEncodedPolyline] = useState<string>('');
+
+  // Fetch Road-Following Encoded Polyline from Google Directions API
+  useEffect(() => {
+    let isMounted = true;
+    const fetchRoadDirections = async () => {
+      if (!apiKey) return;
+      try {
+        const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${currentRiderLat},${currentRiderLng}&destination=${customerLat},${customerLng}&waypoints=${restaurantLat},${restaurantLng}&key=${apiKey.trim()}`;
+        const res = await fetch(url);
+        const data = await res.json();
+        if (isMounted && data.status === 'OK' && data.routes?.[0]?.overview_polyline?.points) {
+          setEncodedPolyline(data.routes[0].overview_polyline.points);
+        }
+      } catch (e) {
+        console.log('Directions API notice:', e);
+      }
+    };
+    fetchRoadDirections();
+    return () => { isMounted = false; };
+  }, [currentRiderLat, currentRiderLng, restaurantLat, restaurantLng, customerLat, customerLng, apiKey]);
+
   // Base Center Map Coordinates
   const baseCenterLat = (restaurantLat + customerLat + currentRiderLat) / 3;
   const baseCenterLng = (restaurantLng + customerLng + currentRiderLng) / 3;
@@ -174,8 +196,13 @@ export function OrderMapView({
   const restPos = getScreenPos(restaurantLat, restaurantLng);
   const custPos = getScreenPos(customerLat, customerLng);
 
-  // Google Maps Static API Map Image URL with Swiggy orange route path: Delivery Boy -> Restaurant -> Customer
-  const googleMapStaticUrl = `https://maps.googleapis.com/maps/api/staticmap?center=${effectiveCenterLat.toFixed(5)},${effectiveCenterLng.toFixed(5)}&zoom=${zoomLevel}&size=640x640&scale=2&maptype=${mapType}&markers=color:orange%7Clabel:D%7C${currentRiderLat.toFixed(5)},${currentRiderLng.toFixed(5)}&markers=color:red%7Clabel:R%7C${restaurantLat.toFixed(5)},${restaurantLng.toFixed(5)}&markers=color:green%7Clabel:C%7C${customerLat.toFixed(5)},${customerLng.toFixed(5)}&path=color:0xf97316ff%7Cweight:6%7C${currentRiderLat.toFixed(5)},${currentRiderLng.toFixed(5)}%7C${restaurantLat.toFixed(5)},${restaurantLng.toFixed(5)}%7C${customerLat.toFixed(5)},${customerLng.toFixed(5)}&key=${apiKey.trim()}`;
+  // Construct Road Polyline vs Straight Fallback Path
+  const pathParam = encodedPolyline
+    ? `path=color:0xf97316ff%7Cweight:6%7Cenc:${encodeURIComponent(encodedPolyline)}`
+    : `path=color:0xf97316ff%7Cweight:6%7C${currentRiderLat.toFixed(5)},${currentRiderLng.toFixed(5)}%7C${restaurantLat.toFixed(5)},${restaurantLng.toFixed(5)}%7C${customerLat.toFixed(5)},${customerLng.toFixed(5)}`;
+
+  // Google Maps Static API Map Image URL with Swiggy orange route path following real roads
+  const googleMapStaticUrl = `https://maps.googleapis.com/maps/api/staticmap?center=${effectiveCenterLat.toFixed(5)},${effectiveCenterLng.toFixed(5)}&zoom=${zoomLevel}&size=640x640&scale=2&maptype=${mapType}&markers=color:orange%7Clabel:D%7C${currentRiderLat.toFixed(5)},${currentRiderLng.toFixed(5)}&markers=color:red%7Clabel:R%7C${restaurantLat.toFixed(5)},${restaurantLng.toFixed(5)}&markers=color:green%7Clabel:C%7C${customerLat.toFixed(5)},${customerLng.toFixed(5)}&${pathParam}&key=${apiKey.trim()}`;
 
   const handleZoomIn = () => setZoomLevel(prev => Math.min(prev + 1, 18));
   const handleZoomOut = () => setZoomLevel(prev => Math.max(prev - 1, 10));
