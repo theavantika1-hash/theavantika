@@ -212,12 +212,15 @@ const getOrderTrackingInfo = async (orderId) => {
         dboy = await DeliveryBoy.findById(order.deliveryBoyId).select('-password');
     }
     
-    // Fallback: If no delivery boy ID is directly linked yet, find an active delivery partner
+    // Fallback: If no delivery boy ID is directly linked yet, find the active delivery partner who updated their location most recently
     if (!dboy) {
-        dboy = await DeliveryBoy.findOne({ status: 'active' }).select('-password');
+        dboy = await DeliveryBoy.findOne({ isOnline: true }).sort({ 'location.lastUpdated': -1, updatedAt: -1 }).select('-password');
     }
     if (!dboy) {
-        dboy = await DeliveryBoy.findOne().select('-password');
+        dboy = await DeliveryBoy.findOne({ status: 'active' }).sort({ 'location.lastUpdated': -1, updatedAt: -1 }).select('-password');
+    }
+    if (!dboy) {
+        dboy = await DeliveryBoy.findOne().sort({ 'location.lastUpdated': -1, updatedAt: -1 }).select('-password');
     }
 
     if (dboy) {
