@@ -150,6 +150,7 @@ function App() {
   const [showProfilePage, setShowProfilePage] = useState(false)
   const [profileActiveTab, setProfileActiveTab] = useState('dashboard')
   const [orderSearchQuery, setOrderSearchQuery] = useState('')
+  const [profileName, setProfileName] = useState('')
   const [profileMobile, setProfileMobile] = useState('')
   const [profileEmail, setProfileEmail] = useState('')
   const [profileDob, setProfileDob] = useState('')
@@ -1779,6 +1780,8 @@ function App() {
         setProfileActiveTab={setProfileActiveTab}
         loggedInUser={loggedInUser}
         setLoggedInUser={setLoggedInUser}
+        profileName={profileName}
+        setProfileName={setProfileName}
         profileMobile={profileMobile}
         setProfileMobile={setProfileMobile}
         profileEmail={profileEmail}
@@ -1834,7 +1837,7 @@ function App() {
       {/* Live Order Tracking Modal with Google Maps */}
       {activeTrackingOrder && (
         <OrderTrackingModal
-          order={activeTrackingOrder}
+          order={typeof activeTrackingOrder === 'object' ? activeTrackingOrder : { orderId: activeTrackingOrder }}
           onClose={() => setActiveTrackingOrder(null)}
         />
       )}
@@ -1850,7 +1853,7 @@ function App() {
         }}
       />
       {/* Floating Track Order Button */}
-      {isLoggedIn && diningMode && lastTrackedOrder && !activeTrackingOrder && (
+      {isLoggedIn && lastTrackedOrder && !activeTrackingOrder && (
         <div
           className="floating-track-order-btn"
           onClick={() => setActiveTrackingOrder(lastTrackedOrder)}

@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
+import { io } from 'socket.io-client';
 
 const getEmojiMarkerIcon = (emoji, bg = '#ffffff', borderColor = '#ef4444') => {
   const canvas = document.createElement('canvas');
@@ -23,7 +24,7 @@ const getEmojiMarkerIcon = (emoji, bg = '#ffffff', borderColor = '#ef4444') => {
 };
 
 /**
- * OrderTrackingModal Component - Swiggy / Zomato Premium UI Style
+ * OrderTrackingModal Component - Swiggy / Zomato Premium Real-Time Live Tracking
  */
 export const OrderTrackingModal = ({ order, onClose }) => {
   const mapRef = useRef(null);
@@ -32,94 +33,117 @@ export const OrderTrackingModal = ({ order, onClose }) => {
   const restMarkerRef = useRef(null);
   const userMarkerRef = useRef(null);
   const riderMarkerRef = useRef(null);
+  const leafletIframeRef = useRef(null);
+
   const [trackingData, setTrackingData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [mapsLoaded, setMapsLoaded] = useState(false);
   const [mapsError, setMapsError] = useState(false);
-  const [distanceText, setDistanceText] = useState('3.8 km');
+  const [distanceText, setDistanceText] = useState('3.5 km');
   const [durationText, setDurationText] = useState('18 mins');
+  const [socketConnected, setSocketConnected] = useState(false);
+  const [lastGpsUpdateTime, setLastGpsUpdateTime] = useState(null);
+
   const [apiKey, setApiKey] = useState(
     localStorage.getItem('avantika_google_maps_key') ||
     (import.meta.env && import.meta.env.VITE_GOOGLE_MAPS_API_KEY) ||
     ''
   );
   const [showKeyInput, setShowKeyInput] = useState(false);
-  const [zoom, setZoom] = useState(14);
-  const [riderProgress, setRiderProgress] = useState(0.35);
 
   const orderId = order?.orderId || order?._id || order?.id || 'AV-18293746';
   const currentStatus = trackingData?.orderStatus || order?.orderStatus || 'Preparing';
-  const itemCount = order?.orderedItems?.length || 2;
+  const itemCount = order?.orderedItems?.length || (order?.items ? order.items.split(',').length : 2);
   const restaurantName = trackingData?.restaurantLocation?.name || 'Avantika Restaurant';
 
-  // Fetch live tracking details from backend
+  // 1. Fetch initial tracking details from backend
   const fetchTrackingInfo = async () => {
     try {
       const res = await fetch(`http://localhost:45000/api/orders/track/${orderId}`);
       const json = await res.json();
       if (json.success && json.data) {
         setTrackingData(json.data);
-      } else {
-        setTrackingData({
-          orderId,
-          orderStatus: order?.orderStatus || 'Preparing',
-          deliveryAddress: typeof order?.deliveryAddress === 'string' ? order.deliveryAddress : 'To Office | 197 c, Alwar, Rajasthan',
-          restaurantLocation: {
-            name: 'Avantika Restaurant',
-            address: 'SH 25, near Telco circle, Bhagwanpura, Alwar, Rajasthan 301001',
-            latitude: 27.596704286992576,
-            longitude: 76.63211439999625
-          },
-          userLocation: {
-            address: typeof order?.deliveryAddress === 'string' ? order.deliveryAddress : 'Delivery Address, Alwar',
-            latitude: 27.6208,
-            longitude: 76.6436
-          },
-          deliveryBoy: {
-            name: order?.deliveryBoyName || order?.deliveryBoy?.name || 'Ashwani Raj',
-            phone: '+91 98765 43210',
-            vehicleType: 'Bike',
-            vehicleNumber: 'RJ-14-DB-8812',
-            location: { latitude: 27.6085, longitude: 76.6385, address: 'En Route on Alwar Rd' }
-          }
-        });
       }
     } catch (err) {
-      setTrackingData({
-        orderId,
-        orderStatus: order?.orderStatus || 'Preparing',
-        deliveryAddress: typeof order?.deliveryAddress === 'string' ? order.deliveryAddress : 'To Office | 197 c, Alwar, Rajasthan',
-        restaurantLocation: {
-          name: 'Avantika Restaurant',
-          address: 'SH 25, near Telco circle, Bhagwanpura, Alwar, Rajasthan 301001',
-          latitude: 27.596704286992576,
-          longitude: 76.63211439999625
-        },
-        userLocation: {
-          address: typeof order?.deliveryAddress === 'string' ? order.deliveryAddress : 'Delivery Address, Alwar',
-          latitude: 27.6208,
-          longitude: 76.6436
-        },
-        deliveryBoy: {
-          name: order?.deliveryBoyName || order?.deliveryBoy?.name || 'Ashwani Raj',
-          phone: '+91 98765 43210',
-          vehicleType: 'Bike',
-          vehicleNumber: 'RJ-14-DB-8812',
-          location: { latitude: 27.6085, longitude: 76.6385, address: 'En Route on Alwar Rd' }
-        }
-      });
+      console.warn('[USER TRACKING] HTTP fetch error:', err);
     } finally {
       setLoading(false);
     }
   };
 
+  // 2. Real-Time Socket.IO Location Stream Subscription
   useEffect(() => {
     fetchTrackingInfo();
+
+    let socket = null;
+    try {
+      socket = io('http://localhost:45000', {
+        transports: ['websocket', 'polling'],
+        reconnection: true,
+      });
+
+      socket.on('connect', () => {
+        console.log('[USER SOCKET] Connected to server, joining room: order:' + orderId);
+        socket.emit('join:order', { orderId, role: 'customer' });
+        setSocketConnected(true);
+      });
+
+      socket.on('disconnect', () => {
+        setSocketConnected(false);
+      });
+
+      socket.on('delivery:location:update', (data) => {
+        console.log('[USER SOCKET] Received Real-Time GPS Update:', data);
+        if (data && data.latitude && data.longitude) {
+          const newLat = Number(data.latitude);
+          const newLng = Number(data.longitude);
+          setLastGpsUpdateTime(new Date());
+
+          setTrackingData(prev => {
+            if (!prev) return prev;
+            return {
+              ...prev,
+              deliveryBoy: {
+                ...(prev.deliveryBoy || {}),
+                location: {
+                  latitude: newLat,
+                  longitude: newLng,
+                  heading: data.heading || 0,
+                  speed: data.speed || 0,
+                  address: 'Live Physical GPS',
+                  lastUpdated: new Date()
+                }
+              }
+            };
+          });
+
+          // Send real-time update to Leaflet map iframe if loaded
+          if (leafletIframeRef.current && leafletIframeRef.current.contentWindow) {
+            leafletIframeRef.current.contentWindow.postMessage({
+              type: 'UPDATE_RIDER_GPS',
+              latitude: newLat,
+              longitude: newLng,
+              heading: data.heading || 0
+            }, '*');
+          }
+        }
+      });
+    } catch (err) {
+      console.warn('[USER SOCKET ERROR]', err);
+    }
+
     const interval = setInterval(fetchTrackingInfo, 5000);
-    return () => clearInterval(interval);
+
+    return () => {
+      clearInterval(interval);
+      if (socket) {
+        socket.emit('leave:order', { orderId });
+        socket.disconnect();
+      }
+    };
   }, [orderId]);
 
-  // Load Google Maps JS SDK dynamically
+  // 3. Load Google Maps JS SDK dynamically if API Key is set
   useEffect(() => {
     if (!apiKey) {
       setMapsLoaded(false);
@@ -149,7 +173,7 @@ export const OrderTrackingModal = ({ order, onClose }) => {
     document.head.appendChild(script);
   }, [apiKey]);
 
-  // Initialize & Render Google Map
+  // 4. Initialize & Update Google Map
   useEffect(() => {
     if (!mapsLoaded || !mapRef.current || !window.google) return;
 
@@ -177,7 +201,6 @@ export const OrderTrackingModal = ({ order, onClose }) => {
 
       const map = googleMapInstanceRef.current;
 
-      // Swiggy Orange / Red Polyline
       const directionsService = new window.google.maps.DirectionsService();
       if (!directionsRendererRef.current) {
         directionsRendererRef.current = new window.google.maps.DirectionsRenderer({
@@ -235,7 +258,7 @@ export const OrderTrackingModal = ({ order, onClose }) => {
         });
       }
 
-      // Rider Marker Pin using REAL-TIME GPS coordinates from MongoDB backend
+      // Rider Marker Pin using REAL-TIME GPS coordinates
       const liveRiderLat = trackingData?.deliveryBoy?.location?.latitude || restLat;
       const liveRiderLng = trackingData?.deliveryBoy?.location?.longitude || restLng;
       const riderPos = { lat: Number(liveRiderLat), lng: Number(liveRiderLng) };
@@ -267,16 +290,13 @@ export const OrderTrackingModal = ({ order, onClose }) => {
 
   const riderName = trackingData?.deliveryBoy?.name || order?.deliveryBoyName || order?.deliveryBoy?.name || 'Ashwani Raj';
   const riderPhone = trackingData?.deliveryBoy?.phone || '+919876543210';
-
-  const liveRiderLat = trackingData?.deliveryBoy?.location?.latitude || 27.596704;
+  const liveRiderLat = trackingData?.deliveryBoy?.location?.latitude || 27.6085;
+  const liveRiderLng = trackingData?.deliveryBoy?.location?.longitude || 76.6385;
   const restLat = trackingData?.restaurantLocation?.latitude || 27.596704;
+  const restLng = trackingData?.restaurantLocation?.longitude || 76.632114;
   const userLat = trackingData?.userLocation?.latitude || 27.6208;
-  const latDiff = userLat - restLat;
-  const rawProgress = latDiff !== 0 ? (liveRiderLat - restLat) / latDiff : 0.4;
-  const realProgress = Math.max(0.05, Math.min(0.95, rawProgress));
-  const riderLeftPx = `${30 + realProgress * 300}px`;
+  const userLng = trackingData?.userLocation?.longitude || 76.6436;
 
-  // Dynamic status messages matching Swiggy / Zomato
   const getStatusTitle = () => {
     if (currentStatus === 'Out for Delivery') return 'Partner is on the way';
     if (currentStatus === 'Delivered') return 'Order Delivered!';
@@ -289,6 +309,54 @@ export const OrderTrackingModal = ({ order, onClose }) => {
     if (currentStatus === 'Delivered') return 'Your food package has been handed over successfully';
     return `${riderName} is at the restaurant, and is about to pick your order`;
   };
+
+  // Interactive Leaflet Vector Map HTML template for live tracking when Google key is not set
+  const leafletMapHtml = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+      <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+      <style>
+        body, html, #map { width: 100%; height: 100%; margin: 0; padding: 0; background: #0f172a; }
+        .pin-card { background: #ffffff; padding: 3px 6px; border-radius: 6px; font-size: 10px; font-weight: 800; color: #0f172a; border: 1px solid #cbd5e1; white-space: nowrap; }
+        .cust-card { background: #10b981; color: #fff; border: none; }
+        .rider-beacon { width: 40px; height: 40px; border-radius: 50%; background: #ef4444; border: 3px solid #ffffff; box-shadow: 0 4px 12px rgba(239,68,68,0.4); display: flex; align-items: center; justify-content: center; font-size: 20px; transition: all 0.8s ease; }
+      </style>
+    </head>
+    <body>
+      <div id="map"></div>
+      <script>
+        var map = L.map('map', { zoomControl: false }).setView([${(restLat + userLat) / 2}, ${(restLng + userLng) / 2}], 14);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+        var restIcon = L.divIcon({ className: '', html: '<div class="pin-card">🏪 ${restaurantName.replace(/'/g, "\\'")}</div>', iconAnchor: [30, 15] });
+        var custIcon = L.divIcon({ className: '', html: '<div class="pin-card cust-card">🏠 Customer</div>', iconAnchor: [30, 15] });
+        var riderIcon = L.divIcon({ className: '', html: '<div class="rider-beacon">🛵</div>', iconSize: [40, 40], iconAnchor: [20, 20] });
+
+        L.marker([${restLat}, ${restLng}], { icon: restIcon }).addTo(map);
+        L.marker([${userLat}, ${userLng}], { icon: custIcon }).addTo(map);
+
+        var riderMarker = L.marker([${liveRiderLat}, ${liveRiderLng}], { icon: riderIcon }).addTo(map);
+
+        var polyline = L.polyline([[${restLat}, ${restLng}], [${liveRiderLat}, ${liveRiderLng}], [${userLat}, ${userLng}]], { color: '#f97316', weight: 5 }).addTo(map);
+
+        var bounds = L.latLngBounds([[${restLat}, ${restLng}], [${userLat}, ${userLng}]]);
+        map.fitBounds(bounds, { padding: [40, 40] });
+
+        window.addEventListener('message', function(event) {
+          if (event.data && event.data.type === 'UPDATE_RIDER_GPS') {
+            var newPos = [event.data.latitude, event.data.longitude];
+            riderMarker.setLatLng(newPos);
+            polyline.setLatLngs([[${restLat}, ${restLng}], newPos, [${userLat}, ${userLng}]]);
+            map.panTo(newPos, { animate: true });
+          }
+        });
+      </script>
+    </body>
+    </html>
+  `;
 
   return (
     <div
@@ -366,7 +434,7 @@ export const OrderTrackingModal = ({ order, onClose }) => {
               {restaurantName}
             </h4>
             <span style={{ fontSize: '11px', color: '#64748b', fontWeight: '600' }}>
-              03:36 PM • {itemCount} Items
+              Order #{orderId.slice(-6)} • {itemCount} Items
             </span>
           </div>
 
@@ -408,65 +476,25 @@ export const OrderTrackingModal = ({ order, onClose }) => {
           </div>
         )}
 
+        {/* REAL-TIME SOCKET & GPS STATUS BADGE */}
+        <div style={{ position: 'absolute', top: '74px', left: '20px', zIndex: 18, display: 'flex', gap: '6px' }}>
+          <div style={{ background: socketConnected ? '#22c55e' : '#ef4444', color: '#fff', fontSize: '10px', fontWeight: '800', padding: '3px 8px', borderRadius: '100px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#fff' }} />
+            {socketConnected ? 'LIVE SOCKET CONNECTED' : 'SOCKET DISCONNECTED'}
+          </div>
+        </div>
+
         {/* MAP CANVAS */}
         <div style={{ flex: 1, position: 'relative', background: '#e2e8f0', width: '100%' }}>
           {mapsLoaded && !mapsError ? (
             <div ref={mapRef} style={{ width: '100%', height: '100%' }} />
           ) : (
-            /* SWIGGY STYLE MAP SVG VIEW WHEN API KEY PENDING */
-            <div
-              style={{
-                width: '100%',
-                height: '100%',
-                background: '#e5e7eb',
-                position: 'relative',
-                overflow: 'hidden'
-              }}
-            >
-              <svg style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none' }}>
-                {/* Roads Background */}
-                <rect width="100%" height="100%" fill="#f1f5f9" />
-                <path d="M 60 0 V 800 M 180 0 V 800 M 320 0 V 800" stroke="#ffffff" strokeWidth="22" />
-                <path d="M 0 160 H 600 M 0 340 H 600 M 0 520 H 600" stroke="#ffffff" strokeWidth="22" />
-
-                {/* Bright Orange Route Path */}
-                <path
-                  d="M 60 220 L 180 220 L 180 480 L 340 480"
-                  fill="none"
-                  stroke="#f97316"
-                  strokeWidth="7"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-
-              {/* Restaurant Pin Tag */}
-              <div style={{ position: 'absolute', top: '190px', left: '30px', display: 'flex', flexDirection: 'column', alignItems: 'center', zIndex: 10 }}>
-                <div style={{ background: '#ffffff', color: '#0f172a', padding: '4px 10px', borderRadius: '8px', fontSize: '11px', fontWeight: '900', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', marginBottom: '4px', whiteSpace: 'nowrap' }}>
-                  {restaurantName}
-                </div>
-                <div style={{ background: '#0f172a', color: '#fff', width: '36px', height: '36px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px' }}>
-                  🏪
-                </div>
-              </div>
-
-              {/* Live Delivery Rider Vehicle */}
-              <div style={{ position: 'absolute', top: '200px', left: riderLeftPx, transform: 'translate(-50%, -50%)', transition: 'left 1s linear', zIndex: 12 }}>
-                <div style={{ background: '#ef4444', color: '#ffffff', width: '42px', height: '42px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '22px', boxShadow: '0 4px 16px rgba(239,68,68,0.4)', border: '3px solid #ffffff' }}>
-                  🛵
-                </div>
-              </div>
-
-              {/* Customer Destination Pin */}
-              <div style={{ position: 'absolute', top: '450px', left: '310px', display: 'flex', flexDirection: 'column', alignItems: 'center', zIndex: 10 }}>
-                <div style={{ background: '#ffffff', color: '#0f172a', padding: '4px 10px', borderRadius: '8px', fontSize: '11px', fontWeight: '900', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', marginBottom: '4px', whiteSpace: 'nowrap' }}>
-                  To Office | Customer Address
-                </div>
-                <div style={{ background: '#10b981', color: '#fff', width: '36px', height: '36px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px' }}>
-                  🏠
-                </div>
-              </div>
-            </div>
+            <iframe
+              ref={leafletIframeRef}
+              title="Live Delivery Rider Tracking"
+              srcDoc={leafletMapHtml}
+              style={{ width: '100%', height: '100%', border: 'none' }}
+            />
           )}
         </div>
 
@@ -489,7 +517,7 @@ export const OrderTrackingModal = ({ order, onClose }) => {
             <div style={{ flex: 1, paddingRight: '12px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '2px' }}>
                 <span style={{ color: '#059669', fontSize: '11px', fontWeight: '900', letterSpacing: '0.5px' }}>
-                  {currentStatus === 'Out for Delivery' ? '⚡ BEFORE TIME' : '✓ ON TIME'}
+                  {currentStatus === 'Out for Delivery' ? '⚡ LIVE RIDER TRACKING' : '✓ ON TIME'}
                 </span>
               </div>
               <h3 style={{ margin: '2px 0 4px 0', fontSize: '20px', fontWeight: '900', color: '#0f172a', letterSpacing: '-0.3px' }}>
@@ -535,14 +563,14 @@ export const OrderTrackingModal = ({ order, onClose }) => {
               borderTop: '1px solid #f1f5f9'
             }}
           >
-            <span>Address & instructions ›</span>
+            <span>📍 {trackingData?.userLocation?.address || 'Customer Delivery Address'}</span>
           </div>
 
           {/* Rider Profile & Call/Message Actions */}
           <div
             style={{
               display: 'flex',
-              justify: 'space-between',
+              justifyContent: 'space-between',
               alignItems: 'center',
               paddingTop: '10px',
               borderTop: '1px solid #f1f5f9'
@@ -569,7 +597,7 @@ export const OrderTrackingModal = ({ order, onClose }) => {
                   {riderName}
                 </h4>
                 <span style={{ fontSize: '11px', color: '#64748b', fontWeight: '600' }}>
-                  Delivery Partner • {trackingData?.deliveryBoy?.vehicleNumber || 'RJ-14-DB'}
+                  Delivery Partner • {trackingData?.deliveryBoy?.vehicleNumber || 'RJ-14-DB-8812'}
                 </span>
               </div>
             </div>
