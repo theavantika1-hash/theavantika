@@ -193,12 +193,15 @@ app.use('/api/inventory', inventoryRoutes);
 app.set('views', path.join(__dirname, 'src/views'));
 app.set('view engine', 'ejs');
 
-// Connect to database and start server
+// Connect to database
 connectDB();
 
+// Setup HTTP server with Socket.IO
+const server = http.createServer(app);
+const socketService = require('./src/services/socketService');
+socketService.initSocket(server);
 
-
-
-app.listen(process.env.PORT || 45000, '0.0.0.0', () => {
-    console.log(`Server is running on http://0.0.0.0:${process.env.PORT || 45000}`);
-});
+const PORT = process.env.PORT || 45000;
+server.listen(PORT, '0.0.0.0', () => {
+    console.log(`Server is running with Socket.IO on http://0.0.0.0:${PORT}`);
+});

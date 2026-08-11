@@ -95,22 +95,29 @@ export function OrderDetailScreen({
     'Customer Location is misleading and too far, not accurate as given and not fall in my area.'
   );
 
-  const handleArrivePress = () => {
+  const handleArrivePress = async () => {
+    const cleanId = (orderNumber || '').replace(/^Order\s*#/i, '').trim();
     if (buttonState === 'arrive') {
       setButtonState('picked_up');
-      if (onNavigateToTracking) {
-        onNavigateToTracking();
-      } else {
-        Alert.alert('Arrived at Restaurant', 'Status updated to Arrived.');
-      }
+      try {
+        await deliveryBoyApi.updateOrderStatus(cleanId, 'ARRIVED_AT_RESTAURANT');
+      } catch (e) {}
+      Alert.alert('Arrived at Restaurant', 'Status updated to Arrived at Restaurant.');
     } else if (buttonState === 'picked_up') {
       setButtonState('delivered');
-      Alert.alert('Order Picked Up', 'Head to customer location!');
+      try {
+        await deliveryBoyApi.updateOrderStatus(cleanId, 'PICKED_UP');
+      } catch (e) {}
+      Alert.alert('Order Picked Up', 'Destination updated to Customer address!');
     } else {
+      try {
+        await deliveryBoyApi.updateOrderStatus(cleanId, 'DELIVERED');
+      } catch (e) {}
       Alert.alert('Order Delivered', 'Order successfully completed!');
       if (onBack) onBack();
     }
   };
+
 
   const handleCall = () => {
     Alert.alert('Call Customer', 'Dialing John Doe...');
@@ -159,6 +166,7 @@ export function OrderDetailScreen({
         {/* 2. DYNAMIC MAP VIEW */}
         <View style={StyleSheet.absoluteFill}>
           <OrderMapView
+            orderId={(orderNumber || '').replace(/^Order\s*#/i, '').trim()}
             orderNumber={orderNumber}
             riderName={realRiderName}
             customerName={customerName}

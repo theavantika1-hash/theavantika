@@ -8,7 +8,9 @@ router.post("/", orderController.placeOrder);
 router.get("/all", orderController.getAllOrders);
 router.get("/track/:orderId", orderController.getOrderTracking);
 router.get("/:orderId/track", orderController.getOrderTracking);
+router.get("/:orderId/route", orderController.getOrderRoute);
 router.get("/user/:userId", orderController.getUserOrders);
+
 router.get("/:userId", orderController.getUserOrders);
 router.get("/", orderController.getAllOrders);
 router.put("/status/:orderId", orderController.updateOrderStatus);

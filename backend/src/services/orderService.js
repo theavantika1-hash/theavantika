@@ -277,11 +277,68 @@ const getOrderTrackingInfo = async (orderId) => {
     };
 };
 
+// Calculate real road-network route, snapped location, road distance & ETA
+const getOrderRouteInfo = async (orderId, currentRiderLat, currentRiderLng) => {
+    const trackingInfo = await getOrderTrackingInfo(orderId);
+    const { restaurantLocation, userLocation, deliveryBoy, orderStatus } = trackingInfo;
+
+    const routingService = require('./routingService');
+
+    const riderLat = Number(currentRiderLat) || deliveryBoy?.location?.latitude || 27.6085;
+    const riderLng = Number(currentRiderLng) || deliveryBoy?.location?.longitude || 76.6385;
+
+    const statusUpper = (orderStatus || '').toUpperCase();
+    let waypoints = [];
+    let destinationTarget = 'CUSTOMER';
+
+    if (statusUpper.includes('ASSIGNED') || statusUpper.includes('ACCEPTED') || statusUpper.includes('RESTAURANT')) {
+        // Leg 1: Delivery Boy -> Restaurant
+        destinationTarget = 'RESTAURANT';
+        waypoints = [
+            { latitude: riderLat, longitude: riderLng },
+            { latitude: restaurantLocation.latitude, longitude: restaurantLocation.longitude }
+        ];
+    } else {
+        // Leg 2: Delivery Boy -> Customer (after pickup or driving to customer)
+        destinationTarget = 'CUSTOMER';
+        waypoints = [
+            { latitude: riderLat, longitude: riderLng },
+            { latitude: userLocation.latitude, longitude: userLocation.longitude }
+        ];
+    }
+
+    const routeData = await routingService.getRoadRoute(waypoints);
+    const snapping = routingService.snapGpsToRoad(riderLat, riderLng, routeData.points, 50);
+
+    return {
+        orderId: trackingInfo.orderId,
+        orderStatus: trackingInfo.orderStatus,
+        destinationTarget,
+        deliveryBoyLocation: {
+            latitude: riderLat,
+            longitude: riderLng,
+            snappedLatitude: snapping.snappedLat,
+            snappedLongitude: snapping.snappedLng,
+            isSnapped: snapping.isSnapped,
+            isOffRoute: snapping.isOffRoute,
+            distanceToRouteMeters: snapping.distanceToRouteMeters
+        },
+        restaurantLocation,
+        userLocation,
+        routePoints: routeData.points,
+        distanceKm: routeData.distanceKm,
+        durationMins: routeData.durationMins,
+        routingSource: routeData.source
+    };
+};
+
 module.exports = {
     createOrder,
     getAllOrders,
     getUserOrders,
     updateOrderStatus,
-    getOrderTrackingInfo
+    getOrderTrackingInfo,
+    getOrderRouteInfo
 };
+
 

@@ -1,22 +1,33 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
-  Image,
   ActivityIndicator,
   Modal,
-  TextInput,
   Alert,
-  PanResponder,
-  Dimensions,
 } from 'react-native';
-import { GOOGLE_MAPS_API_KEY as DEFAULT_KEY } from '../config/mapsConfig';
-import { deliveryBoyApi } from '../config/api';
+import WebView from 'react-native-webview';
 import { requestAppPermissions, checkPermissionsStatus } from '../utils/permissionHelper';
-
-const { width, height } = Dimensions.get('window');
+import {
+  startLiveLocationTracking,
+  subscribeLocationFixes,
+  LocationFix,
+  GpsStatusType,
+} from '../services/locationService';
+import {
+  joinOrderRoom,
+  leaveOrderRoom,
+  subscribeLocationUpdates,
+  subscribeConnectionStatus,
+} from '../services/socketService';
+import {
+  fetchRoadRoute,
+  snapGpsToRoadPolyline,
+  segmentRoute,
+  RoutePoint,
+} from '../services/routingService';
 
 interface OrderMapViewProps {
   orderNumber?: string;
@@ -27,13 +38,13 @@ interface OrderMapViewProps {
   riderName?: string;
   totalDistance?: string;
   timeRemaining?: string;
-  riderLat?: number;
-  riderLng?: number;
   restaurantLat?: number;
   restaurantLng?: number;
   customerLat?: number;
   customerLng?: number;
   orderStatus?: string;
+  orderId?: string;
+  deliveryBoyId?: string;
   onCenterLocation?: () => void;
   hideOverlayCard?: boolean;
   style?: any;
@@ -48,413 +59,530 @@ export function OrderMapView({
   riderName = 'Delivery Executive (You)',
   totalDistance = '3.5 km',
   timeRemaining = '18 mins',
-  restaurantLat = 27.596704286992576,
-  restaurantLng = 76.63211439999625,
+  restaurantLat = 27.596704,
+  restaurantLng = 76.632114,
   customerLat = 27.6208,
   customerLng = 76.6436,
-  riderLat: initialRiderLat = 27.6085,
-  riderLng: initialRiderLng = 76.6385,
   orderStatus = 'Out for Delivery',
+  orderId = '123456789',
+  deliveryBoyId,
   onCenterLocation,
   hideOverlayCard = false,
   style,
 }: OrderMapViewProps) {
-  // Config & State
-  const [apiKey, setApiKey] = React.useState<string>(DEFAULT_KEY);
-  const [showKeyModal, setShowKeyModal] = React.useState<boolean>(false);
-  const [tempKeyInput, setTempKeyInput] = React.useState<string>(DEFAULT_KEY);
-  const [zoomLevel, setZoomLevel] = React.useState<number>(14);
-  const [mapType, setMapType] = React.useState<'roadmap' | 'satellite' | 'hybrid'>('roadmap');
+  const webViewRef = useRef<any>(null);
 
-  // GPS Location & Permission State
-  const [currentRiderLat, setCurrentRiderLat] = React.useState<number>(initialRiderLat);
-  const [currentRiderLng, setCurrentRiderLng] = React.useState<number>(initialRiderLng);
-  const [isGpsActive, setIsGpsActive] = React.useState<boolean>(false);
-  const [showGpsPromptModal, setShowGpsPromptModal] = React.useState<boolean>(false);
-  const [imageLoading, setImageLoading] = React.useState<boolean>(true);
+  // Real GPS Fix State - NO FAKE / HARDCODED INITIAL COORDINATES
+  const [riderFix, setRiderFix] = useState<LocationFix>({
+    latitude: null,
+    longitude: null,
+    accuracy: 0,
+    heading: 0,
+    speed: 0,
+    timestamp: 0,
+    isLive: false,
+    hasRealGpsFix: false,
+    gpsStatus: 'INITIALIZING',
+  });
 
-  // Drag / Pan Offset State for Movable Map
-  const [panOffsetLat, setPanOffsetLat] = React.useState<number>(0);
-  const [panOffsetLng, setPanOffsetLng] = React.useState<number>(0);
-  const [isMapDragged, setIsMapDragged] = React.useState<boolean>(false);
+  const [locationPermGranted, setLocationPermGranted] = useState<boolean>(false);
+  const [snappedLat, setSnappedLat] = useState<number | null>(null);
+  const [snappedLng, setSnappedLng] = useState<number | null>(null);
+  const [isFollowMode, setIsFollowMode] = useState<boolean>(true);
+  const [socketConnected, setSocketConnected] = useState<boolean>(false);
+  const [showGpsPromptModal, setShowGpsPromptModal] = useState<boolean>(false);
+  const [isMapLoaded, setIsMapLoaded] = useState<boolean>(false);
 
-  // Check & Request GPS Permission on Mount and sync live coordinates
-  React.useEffect(() => {
-    let intervalId: any = null;
+  const [fullRoutePoints, setFullRoutePoints] = useState<RoutePoint[]>([]);
+  const [remainingRoutePoints, setRemainingRoutePoints] = useState<RoutePoint[]>([]);
+  const [traveledRoutePoints, setTraveledRoutePoints] = useState<RoutePoint[]>([]);
+  const [roadDistanceKm, setRoadDistanceKm] = useState<string>(totalDistance);
+  const [roadEtaMins, setRoadEtaMins] = useState<string>(timeRemaining);
+  const [isOffRoute, setIsOffRoute] = useState<boolean>(false);
 
-    const initGpsPermissions = async () => {
+  // 1. Initial Permission Check & Runtime GPS Request
+  useEffect(() => {
+    let unmounted = false;
+
+    const initGpsAndSockets = async () => {
+      console.log('[LOCATION] screen opened');
+      console.log('[LOCATION] checking permission');
+
       const status = await checkPermissionsStatus();
       if (!status.locationGranted) {
         setShowGpsPromptModal(true);
       } else {
-        startGpsTracking();
+        setLocationPermGranted(true);
       }
+
+      await startLiveLocationTracking(orderId, deliveryBoyId);
     };
-    initGpsPermissions();
 
-    import('../services/locationService').then(({ startLiveLocationTracking, getCurrentCoordinates }) => {
-      startLiveLocationTracking();
-      setIsGpsActive(true);
+    initGpsAndSockets();
 
-      intervalId = setInterval(() => {
-        const coords = getCurrentCoordinates();
-        if (coords.latitude && coords.longitude) {
-          setCurrentRiderLat(coords.latitude);
-          setCurrentRiderLng(coords.longitude);
+    if (orderId) {
+      joinOrderRoom(orderId, 'delivery_boy');
+    }
+
+    const unsubSocket = subscribeConnectionStatus(connected => {
+      if (!unmounted) setSocketConnected(connected);
+    });
+
+    const unsubGps = subscribeLocationFixes(fix => {
+      if (!unmounted && fix) {
+        setRiderFix(fix);
+        if (fix.gpsStatus !== 'PERMISSION_DENIED') {
+          setLocationPermGranted(true);
         }
-      }, 3000);
+      }
+    });
+
+    const unsubSocketLoc = subscribeLocationUpdates(data => {
+      if (!unmounted && data && data.latitude && data.longitude) {
+        setRiderFix(prev => ({
+          ...prev,
+          latitude: data.latitude,
+          longitude: data.longitude,
+          accuracy: data.accuracy || prev.accuracy,
+          heading: data.heading || prev.heading,
+          speed: data.speed || prev.speed,
+          timestamp: data.timestamp || Date.now(),
+          isLive: true,
+          hasRealGpsFix: true,
+          gpsStatus: 'LIVE',
+        }));
+      }
     });
 
     return () => {
-      if (intervalId) clearInterval(intervalId);
+      unmounted = true;
+      if (orderId) leaveOrderRoom(orderId);
+      unsubSocket();
+      unsubGps();
+      unsubSocketLoc();
     };
-  }, []);
+  }, [orderId, deliveryBoyId]);
 
-  // Function to Start Live Real-Time GPS Location Tracking & Streaming
-  const startGpsTracking = async () => {
-    import('../services/locationService').then(({ startLiveLocationTracking }) => {
-      startLiveLocationTracking();
-      setIsGpsActive(true);
-    });
-  };
-
-  // Handle GPS Permission Request Button
-  const handleAllowGpsPress = async () => {
-    setShowGpsPromptModal(false);
-    setIsGpsActive(true);
-    startGpsTracking();
-    try {
-      await requestAppPermissions();
-    } catch (e) {}
-    Alert.alert('GPS Location Active', 'Real-time live location tracking active for order delivery.');
-  };
-
-  // Drag / Touch PanResponder for Movable Map View
-  const panResponder = React.useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: () => true,
-      onPanResponderMove: (_, gestureState) => {
-        // Convert screen pixel drag offset (dx, dy) to Lat/Lng shifts
-        const zoomScale = Math.pow(2, 20 - zoomLevel);
-        const latShift = (gestureState.dy / 100000) * (zoomScale / 50);
-        const lngShift = (-gestureState.dx / 100000) * (zoomScale / 50);
-
-        setPanOffsetLat(prev => prev + latShift);
-        setPanOffsetLng(prev => prev + lngShift);
-        setIsMapDragged(true);
-      },
-    })
-  ).current;
-
-  const [encodedPolyline, setEncodedPolyline] = useState<string>('');
-
-  // Fetch Road-Following Encoded Polyline from Google Directions API
+  // 2. Fetch Initial Road Network Route
   useEffect(() => {
-    let isMounted = true;
-    const fetchRoadDirections = async () => {
-      if (!apiKey) return;
-      try {
-        const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${currentRiderLat},${currentRiderLng}&destination=${customerLat},${customerLng}&waypoints=${restaurantLat},${restaurantLng}&key=${apiKey.trim()}`;
-        const res = await fetch(url);
-        const data = await res.json();
-        if (isMounted && data.status === 'OK' && data.routes?.[0]?.overview_polyline?.points) {
-          setEncodedPolyline(data.routes[0].overview_polyline.points);
-        }
-      } catch (e) {
-        console.log('Directions API notice:', e);
+    let active = true;
+    const loadRoadRoute = async () => {
+      const isBeforePickup =
+        (orderStatus || '').toUpperCase().includes('ASSIGNED') ||
+        (orderStatus || '').toUpperCase().includes('ACCEPTED') ||
+        (orderStatus || '').toUpperCase().includes('RESTAURANT');
+
+      const origin = riderFix.latitude !== null && riderFix.longitude !== null
+        ? { latitude: riderFix.latitude, longitude: riderFix.longitude }
+        : { latitude: restaurantLat, longitude: restaurantLng };
+
+      const waypoints = isBeforePickup
+        ? [origin, { latitude: restaurantLat, longitude: restaurantLng }]
+        : [origin, { latitude: customerLat, longitude: customerLng }];
+
+      const res = await fetchRoadRoute(waypoints, orderId);
+      if (active && res.points.length > 0) {
+        setFullRoutePoints(res.points);
+        setRoadDistanceKm(`${res.distanceKm} km`);
+        setRoadEtaMins(`${res.durationMins} mins`);
       }
     };
-    fetchRoadDirections();
-    return () => { isMounted = false; };
-  }, [currentRiderLat, currentRiderLng, restaurantLat, restaurantLng, customerLat, customerLng, apiKey]);
 
-  // Base Center Map Coordinates
-  const baseCenterLat = (restaurantLat + customerLat + currentRiderLat) / 3;
-  const baseCenterLng = (restaurantLng + customerLng + currentRiderLng) / 3;
-
-  // Effective Center Coordinates with User Drag/Pan Offset
-  const effectiveCenterLat = baseCenterLat + panOffsetLat;
-  const effectiveCenterLng = baseCenterLng + panOffsetLng;
-
-  // Calculate Screen Position Projections for Real GPS Coordinates
-  const latSpan = 0.05 / Math.pow(2, zoomLevel - 14);
-  const lngSpan = 0.05 / Math.pow(2, zoomLevel - 14);
-
-  const getScreenPos = (lat: number, lng: number) => {
-    const xPct = Math.round(50 + ((lng - effectiveCenterLng) / lngSpan) * 100);
-    const yPct = Math.round(50 - ((lat - effectiveCenterLat) / latSpan) * 100);
-    const clampedX = Math.max(10, Math.min(85, xPct));
-    const clampedY = Math.max(12, Math.min(85, yPct));
-    return {
-      left: `${clampedX}%` as any,
-      top: `${clampedY}%` as any,
+    loadRoadRoute();
+    return () => {
+      active = false;
     };
-  };
+  }, [restaurantLat, restaurantLng, customerLat, customerLng, orderStatus, orderId, riderFix.latitude, riderFix.longitude]);
 
-  // Polyline decoder to convert Google Directions polyline string into lat/lng points
-  const decodePolyline = (encoded: string): Array<{ lat: number; lng: number }> => {
-    const points: Array<{ lat: number; lng: number }> = [];
-    let index = 0;
-    let lat = 0;
-    let lng = 0;
-
-    while (index < encoded.length) {
-      let b: number;
-      let shift = 0;
-      let result = 0;
-
-      do {
-        b = encoded.charCodeAt(index++) - 63;
-        result |= (b & 0x1f) << shift;
-        shift += 5;
-      } while (b >= 0x20);
-
-      const dlat = (result & 1) !== 0 ? ~(result >> 1) : result >> 1;
-      lat += dlat;
-
-      shift = 0;
-      result = 0;
-
-      do {
-        b = encoded.charCodeAt(index++) - 63;
-        result |= (b & 0x1f) << shift;
-        shift += 5;
-      } while (b >= 0x20);
-
-      const dlng = (result & 1) !== 0 ? ~(result >> 1) : result >> 1;
-      lng += dlng;
-
-      points.push({ lat: lat / 1e5, lng: lng / 1e5 });
+  // 3. Process GPS Snapping & Route Segmentation strictly when real GPS fix is available
+  useEffect(() => {
+    if (riderFix.latitude === null || riderFix.longitude === null || fullRoutePoints.length === 0) {
+      return;
     }
 
-    return points;
-  };
+    const snap = snapGpsToRoadPolyline(riderFix.latitude, riderFix.longitude, fullRoutePoints, 50);
+    setSnappedLat(snap.snappedLat);
+    setSnappedLng(snap.snappedLng);
+    setIsOffRoute(snap.isOffRoute);
 
-  // Calculate closest coordinate on the road polyline path to snap rider marker
-  const snapToRoadPolyline = (lat: number, lng: number, polylineStr: string): { lat: number; lng: number } => {
-    if (!polylineStr) return { lat, lng };
-    try {
-      const points = decodePolyline(polylineStr);
-      if (!points || points.length === 0) return { lat, lng };
+    const segmented = segmentRoute(snap.snappedLat, snap.snappedLng, fullRoutePoints);
+    setTraveledRoutePoints(segmented.traveledRoute);
+    setRemainingRoutePoints(segmented.remainingRoute);
 
-      let minDistanceSq = Infinity;
-      let closestPoint = points[0];
+    if (snap.isOffRoute) {
+      const recalculateOffRoute = async () => {
+        const isBeforePickup = (orderStatus || '').toUpperCase().includes('RESTAURANT');
+        const target = isBeforePickup
+          ? { latitude: restaurantLat, longitude: restaurantLng }
+          : { latitude: customerLat, longitude: customerLng };
 
-      for (let i = 0; i < points.length; i++) {
-        const dLat = points[i].lat - lat;
-        const dLng = points[i].lng - lng;
-        const distSq = dLat * dLat + dLng * dLng;
+        const newRoute = await fetchRoadRoute([
+          { latitude: riderFix.latitude!, longitude: riderFix.longitude! },
+          target,
+        ]);
 
-        if (distSq < minDistanceSq) {
-          minDistanceSq = distSq;
-          closestPoint = points[i];
+        if (newRoute.points.length > 0) {
+          setFullRoutePoints(newRoute.points);
+          setRoadDistanceKm(`${newRoute.distanceKm} km`);
+          setRoadEtaMins(`${newRoute.durationMins} mins`);
         }
-      }
-
-      return closestPoint;
-    } catch (e) {
-      return { lat, lng };
+      };
+      recalculateOffRoute();
     }
-  };
+  }, [riderFix.latitude, riderFix.longitude, fullRoutePoints, orderStatus, restaurantLat, restaurantLng, customerLat, customerLng]);
 
-  // Snapped Rider Coordinates locked 100% directly onto the road map line
-  const snappedRiderCoords = snapToRoadPolyline(currentRiderLat, currentRiderLng, encodedPolyline);
-  const riderPos = getScreenPos(snappedRiderCoords.lat, snappedRiderCoords.lng);
-  const restPos = getScreenPos(restaurantLat, restaurantLng);
-  const custPos = getScreenPos(customerLat, customerLng);
+  // 4. Send Real-Time Updates to Leaflet Map inside WebView
+  useEffect(() => {
+    if (!isMapLoaded || !webViewRef.current) return;
 
-  // Construct Road Polyline vs Straight Fallback Path
-  const pathParam = encodedPolyline
-    ? `path=color:0xf97316ff%7Cweight:6%7Cenc:${encodeURIComponent(encodedPolyline)}`
-    : `path=color:0xf97316ff%7Cweight:6%7C${currentRiderLat.toFixed(5)},${currentRiderLng.toFixed(5)}%7C${restaurantLat.toFixed(5)},${restaurantLng.toFixed(5)}%7C${customerLat.toFixed(5)},${customerLng.toFixed(5)}`;
+    const script = `
+      if (window.updateMapData) {
+        window.updateMapData({
+          hasRealGpsFix: ${riderFix.hasRealGpsFix},
+          riderLat: ${snappedLat !== null ? snappedLat : riderFix.latitude !== null ? riderFix.latitude : 'null'},
+          riderLng: ${snappedLng !== null ? snappedLng : riderFix.longitude !== null ? riderFix.longitude : 'null'},
+          heading: ${riderFix.heading || 0},
+          restaurantLat: ${restaurantLat},
+          restaurantLng: ${restaurantLng},
+          customerLat: ${customerLat},
+          customerLng: ${customerLng},
+          remainingRoute: ${JSON.stringify(remainingRoutePoints)},
+          traveledRoute: ${JSON.stringify(traveledRoutePoints)},
+          isFollowMode: ${isFollowMode}
+        });
+      }
+    `;
+    webViewRef.current.injectJavaScript(script);
+  }, [riderFix.hasRealGpsFix, riderFix.latitude, riderFix.longitude, snappedLat, snappedLng, riderFix.heading, restaurantLat, restaurantLng, customerLat, customerLng, remainingRoutePoints, traveledRoutePoints, isFollowMode, isMapLoaded]);
 
-  // Google Maps Static API Map Image URL with Swiggy orange route path starting at live blue dot
-  const googleMapStaticUrl = `https://maps.googleapis.com/maps/api/staticmap?center=${effectiveCenterLat.toFixed(5)},${effectiveCenterLng.toFixed(5)}&zoom=${zoomLevel}&size=640x640&scale=2&maptype=${mapType}&markers=color:red%7Clabel:R%7C${restaurantLat.toFixed(5)},${restaurantLng.toFixed(5)}&markers=color:green%7Clabel:C%7C${customerLat.toFixed(5)},${customerLng.toFixed(5)}&${pathParam}&key=${apiKey.trim()}`;
+  // Calculate GPS Status & Timestamp Diff (PART 10 & 11)
+  const timeSinceUpdateSec = riderFix.timestamp > 0 ? Math.floor((Date.now() - riderFix.timestamp) / 1000) : 999;
+  let activeGpsStatus: GpsStatusType = riderFix.gpsStatus;
 
-  const handleZoomIn = () => setZoomLevel(prev => Math.min(prev + 1, 18));
-  const handleZoomOut = () => setZoomLevel(prev => Math.max(prev - 1, 10));
+  if (riderFix.gpsStatus === 'PERMISSION_DENIED') {
+    activeGpsStatus = 'PERMISSION_DENIED';
+  } else if (!riderFix.hasRealGpsFix) {
+    activeGpsStatus = 'SEARCHING';
+  } else if (timeSinceUpdateSec > 30) {
+    activeGpsStatus = 'OFFLINE';
+  } else if (timeSinceUpdateSec > 15) {
+    activeGpsStatus = 'STALE';
+  } else {
+    activeGpsStatus = 'LIVE';
+  }
 
-  const handleToggleMapType = () => {
-    setMapType(prev => (prev === 'roadmap' ? 'satellite' : prev === 'satellite' ? 'hybrid' : 'roadmap'));
-  };
-
-  const handleRecenterLocation = () => {
-    setPanOffsetLat(0);
-    setPanOffsetLng(0);
-    setIsMapDragged(false);
-    setZoomLevel(14);
+  const handleRecenter = () => {
+    setIsFollowMode(true);
+    if (webViewRef.current) {
+      webViewRef.current.injectJavaScript(`
+        if (window.recenterRider) window.recenterRider();
+      `);
+    }
     if (onCenterLocation) onCenterLocation();
-    Alert.alert('Map Recentered', 'Map view recentered to delivery route.');
   };
 
-  const handleSaveApiKey = () => {
-    if (tempKeyInput.trim()) {
-      setApiKey(tempKeyInput.trim());
-      setShowKeyModal(false);
-      setImageLoading(true);
-      Alert.alert('Google API Key Applied', 'Map reloaded with new Google API Key.');
-    } else {
-      Alert.alert('Error', 'Please enter a valid Google Maps API key.');
+  const handleAllowGps = async () => {
+    setShowGpsPromptModal(false);
+    const res = await requestAppPermissions();
+    if (res.locationGranted) {
+      setLocationPermGranted(true);
+      startLiveLocationTracking(orderId, deliveryBoyId);
     }
   };
+
+  // Base map center point
+  const mapCenterLat = restaurantLat;
+  const mapCenterLng = restaurantLng;
+
+  // Leaflet JS Vector Map HTML Template
+  const leafletHtml = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+      <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+      <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+      <style>
+        body, html, #map { width: 100%; height: 100%; margin: 0; padding: 0; background: #0f172a; }
+        .leaflet-container { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+        
+        .rider-marker-icon {
+          transition: transform 0.6s cubic-bezier(0.25, 1, 0.5, 1);
+        }
+        .rider-beacon {
+          position: relative;
+          width: 38px;
+          height: 38px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .rider-aura {
+          position: absolute;
+          width: 36px;
+          height: 36px;
+          border-radius: 50%;
+          background: rgba(37, 99, 235, 0.25);
+          border: 2px solid #3b82f6;
+          animation: pulse 2s infinite;
+        }
+        .rider-dot {
+          width: 24px;
+          height: 24px;
+          border-radius: 50%;
+          background: #2563eb;
+          border: 3px solid #ffffff;
+          box-shadow: 0 4px 10px rgba(0,0,0,0.4);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 12px;
+          color: white;
+          z-index: 2;
+        }
+        
+        .pin-card {
+          background: #ffffff;
+          padding: 4px 8px;
+          border-radius: 6px;
+          font-size: 11px;
+          font-weight: 800;
+          color: #0f172a;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+          white-space: nowrap;
+          border: 1px solid #e2e8f0;
+        }
+        .customer-pin-card {
+          background: #10b981;
+          color: #ffffff;
+          border: none;
+        }
+        
+        @keyframes pulse {
+          0% { transform: scale(0.8); opacity: 1; }
+          100% { transform: scale(1.6); opacity: 0; }
+        }
+      </style>
+    </head>
+    <body>
+      <div id="map"></div>
+      <script>
+        var map = L.map('map', { zoomControl: false, attributionControl: false }).setView([${mapCenterLat}, ${mapCenterLng}], 15);
+        
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          maxZoom: 19
+        }).addTo(map);
+
+        var riderIcon = L.divIcon({
+          className: 'rider-marker-icon',
+          html: '<div class="rider-beacon"><div class="rider-aura"></div><div class="rider-dot">🛵</div></div>',
+          iconSize: [38, 38],
+          iconAnchor: [19, 19]
+        });
+
+        var restIcon = L.divIcon({
+          className: 'custom-pin',
+          html: '<div class="pin-card">🍴 ${restaurantName.replace(/'/g, "\\'")}</div>',
+          iconAnchor: [30, 15]
+        });
+
+        var custIcon = L.divIcon({
+          className: 'custom-pin',
+          html: '<div class="pin-card customer-pin-card">🏠 ${customerName.replace(/'/g, "\\'")}</div>',
+          iconAnchor: [30, 15]
+        });
+
+        var riderMarker = null; // ONLY CREATED WHEN REAL GPS FIX ARRIVES
+        var restMarker = L.marker([${restaurantLat}, ${restaurantLng}], { icon: restIcon }).addTo(map);
+        var custMarker = L.marker([${customerLat}, ${customerLng}], { icon: custIcon }).addTo(map);
+
+        var remainingPolyline = L.polyline([], { color: '#f97316', weight: 6, opacity: 0.9, lineCap: 'round', lineJoin: 'round' }).addTo(map);
+        var traveledPolyline = L.polyline([], { color: '#94a3b8', weight: 5, opacity: 0.6, dashArray: '8, 8' }).addTo(map);
+
+        var bounds = L.latLngBounds([
+          [${restaurantLat}, ${restaurantLng}],
+          [${customerLat}, ${customerLng}]
+        ]);
+        map.fitBounds(bounds, { padding: [50, 50] });
+
+        map.on('dragstart', function() {
+          if (window.ReactNativeWebView) {
+            window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'USER_DRAGGED_MAP' }));
+          }
+        });
+
+        window.recenterRider = function() {
+          if (riderMarker) {
+            var pos = riderMarker.getLatLng();
+            map.setView(pos, 16, { animate: true });
+          } else {
+            map.fitBounds(bounds, { padding: [50, 50] });
+          }
+        };
+
+        window.updateMapData = function(data) {
+          if (!data) return;
+
+          // Render Delivery Boy Marker ONLY when real physical GPS coordinates exist
+          if (data.hasRealGpsFix && data.riderLat !== null && data.riderLng !== null) {
+            var newLatLng = new L.LatLng(data.riderLat, data.riderLng);
+            if (!riderMarker) {
+              riderMarker = L.marker(newLatLng, { icon: riderIcon }).addTo(map);
+            } else {
+              riderMarker.setLatLng(newLatLng);
+            }
+            
+            var el = riderMarker.getElement();
+            if (el && data.heading !== undefined) {
+              el.style.transform += ' rotate(' + data.heading + 'deg)';
+            }
+
+            if (data.isFollowMode) {
+              map.panTo(newLatLng, { animate: true, duration: 0.5 });
+            }
+          }
+
+          if (data.remainingRoute && data.remainingRoute.length > 0) {
+            var remPoints = data.remainingRoute.map(function(p) { return [p.latitude, p.longitude]; });
+            remainingPolyline.setLatLngs(remPoints);
+          }
+
+          if (data.traveledRoute && data.traveledRoute.length > 0) {
+            var travPoints = data.traveledRoute.map(function(p) { return [p.latitude, p.longitude]; });
+            traveledPolyline.setLatLngs(travPoints);
+          }
+        };
+      </script>
+    </body>
+    </html>
+  `;
 
   return (
     <View style={[styles.container, style]}>
-      {/* MOVABLE / PANABLE MAP CANVAS */}
-      <View style={styles.mapFrame} {...panResponder.panHandlers}>
-        <Image
-          source={{ uri: googleMapStaticUrl }}
-          style={styles.googleMapImage}
-          onLoadStart={() => setImageLoading(true)}
-          onLoadEnd={() => setImageLoading(false)}
-          resizeMode="cover"
+      {/* INTERACTIVE LEAFLET WEBVIEW MAP */}
+      <View style={styles.mapFrame}>
+        <WebView
+          ref={webViewRef}
+          originWhitelist={['*']}
+          source={{ html: leafletHtml }}
+          style={styles.webView}
+          onLoadEnd={() => setIsMapLoaded(true)}
+          onMessage={(event: any) => {
+            try {
+              const msg = JSON.parse(event.nativeEvent.data);
+              if (msg.type === 'USER_DRAGGED_MAP') {
+                setIsFollowMode(false);
+              }
+            } catch (e) {}
+          }}
+          javaScriptEnabled={true}
+          domStorageEnabled={true}
         />
 
-        {imageLoading && (
-          <View style={styles.mapLoadingOverlay}>
+        {!isMapLoaded && (
+          <View style={styles.loadingOverlay}>
             <ActivityIndicator size="large" color="#2563eb" />
-            <Text style={styles.loadingText}>Fetching Google Map...</Text>
+            <Text style={styles.loadingText}>Loading Interactive Map Engine...</Text>
           </View>
         )}
-
-        {/* DRAG / PAN INSTRUCTION BADGE */}
-        {isMapDragged && (
-          <View style={styles.draggedBadge}>
-            <Text style={styles.draggedBadgeText}>🖐️ Map Moved (Touch Recenter 🎯 to Reset)</Text>
-          </View>
-        )}
-
-        {/* DYNAMIC MAP OVERLAY PINS BASED ON REAL GPS COORDINATES */}
-        {/* Restaurant Marker Pin */}
-        <View style={[styles.overlayPinWrapper, restPos, { marginTop: -24 }]}>
-          <View style={styles.pinTagBadge}>
-            <Text style={styles.pinTagText} numberOfLines={1}>
-              🏪 {restaurantName}
-            </Text>
-          </View>
-        </View>
-
-        {/* Customer Marker Pin */}
-        <View style={[styles.overlayPinWrapper, custPos, { marginTop: -24 }]}>
-          <View style={[styles.pinTagBadge, { backgroundColor: '#10b981' }]}>
-            <Text style={[styles.pinTagText, { color: '#ffffff' }]} numberOfLines={1}>
-              🏠 Customer ({customerName})
-            </Text>
-          </View>
-        </View>
-
-        {/* PROMINENT PULSING LIVE DELIVERY BOY GPS LOCATION POINT */}
-        <View style={[styles.overlayPinWrapper, riderPos]}>
-          <View style={styles.riderLocationBeacon}>
-            {/* Outer Pulsing Blue Radar Ring */}
-            <View style={styles.riderPulseAura} />
-            {/* Inner Solid Glowing Point */}
-            <View style={styles.riderDotCenter} />
-            {/* Rider Name & Status Tag */}
-            <View style={styles.riderBadgePill}>
-              <Text style={styles.riderBadgePillText} numberOfLines={1}>
-                🛵 {riderName} {isGpsActive ? '🟢 Live GPS' : ''}
-              </Text>
-            </View>
-          </View>
-        </View>
       </View>
 
-      {/* TOP CONTROLS BAR */}
-      <View style={styles.topHeaderBar}>
-        <View style={styles.topBadge}>
-          <View style={[styles.greenDot, { backgroundColor: isGpsActive ? '#22c55e' : '#f59e0b' }]} />
-          <Text style={styles.topBadgeText}>
-            Google Maps ({mapType.toUpperCase()})
+      {/* REQUIRED DEVELOPMENT DEBUG BAR OVERLAY (PART 17) */}
+      <View style={styles.debugPanel}>
+        <View style={styles.debugRow}>
+          <Text style={styles.debugLabel}>Permission:</Text>
+          <Text style={[styles.debugVal, { color: locationPermGranted ? '#22c55e' : '#ef4444' }]}>
+            {locationPermGranted ? 'GRANTED' : 'DENIED'}
+          </Text>
+          <Text style={styles.debugLabel}> | GPS:</Text>
+          <Text style={[styles.debugVal, { color: activeGpsStatus === 'LIVE' ? '#22c55e' : activeGpsStatus === 'SEARCHING' ? '#f59e0b' : '#ef4444' }]}>
+            {activeGpsStatus}
+          </Text>
+          <Text style={styles.debugLabel}> | Socket:</Text>
+          <Text style={[styles.debugVal, { color: socketConnected ? '#22c55e' : '#ef4444' }]}>
+            {socketConnected ? 'CONNECTED' : 'OFFLINE'}
           </Text>
         </View>
 
-        <TouchableOpacity
-          style={styles.keyBtn}
-          onPress={() => setShowKeyModal(true)}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.keyBtnText}>🔑 API Key</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* RIGHT SIDE ZOOM & MAP TYPE CONTROLS */}
-      <View style={styles.rightControlsStack}>
-        <TouchableOpacity
-          style={styles.controlIconBtn}
-          onPress={handleToggleMapType}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.controlIconText}>
-            {mapType === 'roadmap' ? '🗺️' : '🛰️'}
+        <View style={styles.debugRow}>
+          <Text style={styles.debugLabel}>Lat:</Text>
+          <Text style={styles.debugVal}>
+            {riderFix.latitude !== null ? riderFix.latitude.toFixed(6) : 'Waiting for GPS...'}
           </Text>
-        </TouchableOpacity>
+          <Text style={styles.debugLabel}> | Lng:</Text>
+          <Text style={styles.debugVal}>
+            {riderFix.longitude !== null ? riderFix.longitude.toFixed(6) : 'Waiting for GPS...'}
+          </Text>
+          <Text style={styles.debugLabel}> | Acc:</Text>
+          <Text style={styles.debugVal}>{riderFix.accuracy}m</Text>
+        </View>
 
-        <TouchableOpacity
-          style={styles.controlIconBtn}
-          onPress={handleZoomIn}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.controlIconText}>+</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.controlIconBtn}
-          onPress={handleZoomOut}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.controlIconText}>−</Text>
-        </TouchableOpacity>
+        <View style={styles.debugRow}>
+          <Text style={styles.debugLabel}>Marker Source:</Text>
+          <Text style={[styles.debugVal, { color: riderFix.hasRealGpsFix ? '#22c55e' : '#f59e0b' }]}>
+            {riderFix.hasRealGpsFix ? 'REAL PHYSICAL DEVICE GPS' : 'NONE (Waiting for Physical GPS)'}
+          </Text>
+          <Text style={styles.debugLabel}> | Updated:</Text>
+          <Text style={styles.debugVal}>{timeSinceUpdateSec < 900 ? `${timeSinceUpdateSec}s ago` : 'Never'}</Text>
+        </View>
       </View>
 
-      {/* RECENTER GPS BUTTON */}
+      {/* RECENTER TARGET BUTTON */}
       <TouchableOpacity
-        style={styles.centerTargetBtn}
-        onPress={handleRecenterLocation}
+        style={[styles.centerTargetBtn, isFollowMode && styles.centerTargetActive]}
+        onPress={handleRecenter}
         activeOpacity={0.85}
       >
         <Text style={styles.centerTargetIcon}>🎯</Text>
       </TouchableOpacity>
 
-      {/* DETAILED ORDER ADDRESSES OVERLAY CARD ON MAP VIEW */}
+      {/* OVERLAY ADDRESS & METRICS CARD */}
       {!hideOverlayCard && (
-        <View style={styles.orderAddressCardOnMap}>
-          <View style={styles.addressItemRow}>
-            <Text style={{ fontSize: 13, marginRight: 6 }}>🏪</Text>
+        <View style={styles.orderCardOnMap}>
+          <View style={styles.addressRow}>
+            <Text style={styles.addressIcon}>🍴</Text>
             <View style={{ flex: 1 }}>
-              <Text style={styles.addressLabelTitle}>RESTAURANT</Text>
-              <Text style={styles.addressDetailText} numberOfLines={1}>
+              <Text style={styles.addressTitle}>RESTAURANT PICKUP</Text>
+              <Text style={styles.addressSub} numberOfLines={1}>
                 {restaurantName} • {restaurantAddress}
               </Text>
             </View>
           </View>
 
-          <View style={styles.addressDivider} />
+          <View style={styles.cardDivider} />
 
-          <View style={styles.addressItemRow}>
-            <Text style={{ fontSize: 13, marginRight: 6 }}>🏠</Text>
+          <View style={styles.addressRow}>
+            <Text style={styles.addressIcon}>🏠</Text>
             <View style={{ flex: 1 }}>
-              <Text style={styles.addressLabelTitle}>DELIVERY ADDRESS ({customerName})</Text>
-              <Text style={styles.addressDetailText} numberOfLines={1}>
+              <Text style={styles.addressTitle}>DELIVERY ADDRESS ({customerName})</Text>
+              <Text style={styles.addressSub} numberOfLines={1}>
                 {deliveryAddress}
               </Text>
             </View>
           </View>
 
-          {/* METRICS & STATUS BADGE */}
-          <View style={styles.cardFooterMetricsRow}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Text style={styles.etaTextValue}>
-                📍 {totalDistance} (Est. {timeRemaining})
-              </Text>
-            </View>
+          <View style={styles.cardFooter}>
+            <Text style={styles.metricText}>
+              🛣️ Road: {roadDistanceKm} (Est. {roadEtaMins})
+            </Text>
 
-            <View style={styles.statusPill}>
-              <View style={styles.statusDot} />
-              <Text style={styles.statusPillText}>{orderStatus}</Text>
+            <View style={styles.orderStatusPill}>
+              <Text style={styles.orderStatusText}>{orderStatus}</Text>
             </View>
           </View>
+
+          {!riderFix.hasRealGpsFix && (
+            <View style={styles.waitingGpsBanner}>
+              <ActivityIndicator size="small" color="#d97706" style={{ marginRight: 6 }} />
+              <Text style={styles.waitingGpsText}>Waiting for Physical Device GPS fix...</Text>
+            </View>
+          )}
+
+          {isOffRoute && riderFix.hasRealGpsFix && (
+            <View style={styles.offRouteBanner}>
+              <Text style={styles.offRouteText}>⚠️ Off Route Detected — Recalculating Road Path...</Text>
+            </View>
+          )}
         </View>
       )}
 
@@ -466,76 +594,14 @@ export function OrderMapView({
         onRequestClose={() => setShowGpsPromptModal(false)}
       >
         <View style={styles.modalBackdrop}>
-          <View style={styles.gpsPromptCard}>
-            <View style={styles.gpsIconCircle}>
-              <Text style={{ fontSize: 28 }}>🛰️</Text>
-            </View>
-
-            <Text style={styles.gpsModalTitle}>Allow Live GPS Location Access</Text>
-            <Text style={styles.gpsModalDesc}>
-              Enable device location permissions so we can track real-time delivery routes, calculate accurate ETA for customers, and stream live rider coordinates to the backend database.
+          <View style={styles.gpsCard}>
+            <Text style={styles.gpsTitle}>🛰️ Location Access Required</Text>
+            <Text style={styles.gpsDesc}>
+              Please grant location permission so the app can track your real physical GPS location for delivery navigation.
             </Text>
-
-            <View style={styles.gpsModalBtnCol}>
-              <TouchableOpacity
-                style={styles.allowGpsBtn}
-                onPress={handleAllowGpsPress}
-                activeOpacity={0.85}
-              >
-                <Text style={styles.allowGpsBtnText}>Allow GPS Location Access</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.notNowBtn}
-                onPress={() => setShowGpsPromptModal(false)}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.notNowBtnText}>Not Now</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      {/* GOOGLE MAPS API KEY CONFIGURATION MODAL */}
-      <Modal
-        visible={showKeyModal}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setShowKeyModal(false)}
-      >
-        <View style={styles.modalBackdrop}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>🔑 Google Maps API Key</Text>
-            <Text style={styles.modalDesc}>
-              Paste your Google Maps API key below to render Google Maps imagery:
-            </Text>
-
-            <TextInput
-              style={styles.keyInput}
-              value={tempKeyInput}
-              onChangeText={setTempKeyInput}
-              placeholder="Paste Google Maps API Key (AIzaSy...)"
-              placeholderTextColor="#94a3b8"
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-
-            <View style={styles.modalBtnRow}>
-              <TouchableOpacity
-                style={styles.cancelBtn}
-                onPress={() => setShowKeyModal(false)}
-              >
-                <Text style={styles.cancelBtnText}>Cancel</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.saveBtn}
-                onPress={handleSaveApiKey}
-              >
-                <Text style={styles.saveBtnText}>Save Key</Text>
-              </TouchableOpacity>
-            </View>
+            <TouchableOpacity style={styles.allowBtn} onPress={handleAllowGps}>
+              <Text style={styles.allowBtnText}>Grant Location Permission</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -552,238 +618,119 @@ const styles = StyleSheet.create({
   },
   mapFrame: {
     ...StyleSheet.absoluteFill,
-    backgroundColor: '#1e293b',
+    backgroundColor: '#0f172a',
   },
-  googleMapImage: {
-    width: '100%',
-    height: '100%',
+  webView: {
+    flex: 1,
+    backgroundColor: '#0f172a',
   },
-  mapLoadingOverlay: {
+  loadingOverlay: {
     ...StyleSheet.absoluteFill,
-    backgroundColor: 'rgba(15, 23, 42, 0.75)',
+    backgroundColor: 'rgba(15, 23, 42, 0.85)',
     alignItems: 'center',
     justifyContent: 'center',
-    zIndex: 5,
+    zIndex: 10,
   },
   loadingText: {
-    marginTop: 10,
-    fontSize: 12,
+    color: '#ffffff',
+    fontSize: 13,
     fontWeight: '700',
-    color: '#ffffff',
+    marginTop: 10,
   },
-  draggedBadge: {
+  debugPanel: {
     position: 'absolute',
-    top: 48,
-    alignSelf: 'center',
-    backgroundColor: 'rgba(234, 179, 8, 0.95)',
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderRadius: 14,
-    zIndex: 6,
-  },
-  draggedBadgeText: {
-    color: '#713f12',
-    fontSize: 10,
-    fontWeight: '800',
-  },
-  overlayPinWrapper: {
-    position: 'absolute',
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 4,
-  },
-  riderLocationBeacon: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  riderPulseAura: {
-    position: 'absolute',
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(37, 99, 235, 0.25)',
-    borderWidth: 1.5,
-    borderColor: '#3b82f6',
-  },
-  riderDotCenter: {
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    backgroundColor: '#2563eb',
-    borderWidth: 2.5,
-    borderColor: '#ffffff',
-    shadowColor: '#2563eb',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.8,
-    shadowRadius: 4,
-    elevation: 6,
-  },
-  riderBadgePill: {
-    marginTop: 4,
-    backgroundColor: '#1e293b',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#3b82f6',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.3,
-    shadowRadius: 5,
-    elevation: 6,
-  },
-  riderBadgePillText: {
-    color: '#ffffff',
-    fontSize: 10,
-    fontWeight: '800',
-  },
-  pinTagBadge: {
-    backgroundColor: '#ffffff',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 4,
-    maxWidth: 160,
-  },
-  pinTagText: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: '#0f172a',
-  },
-  topHeaderBar: {
-    position: 'absolute',
-    top: 12,
-    left: 12,
-    right: 12,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    zIndex: 10,
-  },
-  topBadge: {
-    backgroundColor: 'rgba(15, 23, 42, 0.85)',
+    top: 10,
+    left: 10,
+    right: 10,
+    backgroundColor: 'rgba(15, 23, 42, 0.94)',
+    borderRadius: 12,
     paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 20,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: '#334155',
+    zIndex: 30,
+    gap: 2,
+  },
+  debugRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    flexWrap: 'wrap',
   },
-  greenDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-    backgroundColor: '#22c55e',
+  debugLabel: {
+    color: '#94a3b8',
+    fontSize: 10,
+    fontWeight: '700',
   },
-  topBadgeText: {
+  debugVal: {
     color: '#ffffff',
     fontSize: 10,
     fontWeight: '800',
-    letterSpacing: 0.3,
-  },
-  keyBtn: {
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 14,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 3,
-    elevation: 3,
-  },
-  keyBtnText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#1e293b',
-  },
-  rightControlsStack: {
-    position: 'absolute',
-    top: 54,
-    right: 12,
-    gap: 6,
-    zIndex: 10,
-  },
-  controlIconBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 8,
-    backgroundColor: '#ffffff',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 3,
-    elevation: 4,
-  },
-  controlIconText: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#1e293b',
+    marginLeft: 3,
   },
   centerTargetBtn: {
     position: 'absolute',
-    bottom: 110,
+    bottom: 120,
     right: 14,
-    width: 42,
-    height: 42,
-    borderRadius: 21,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: '#ffffff',
     alignItems: 'center',
     justifyContent: 'center',
+    elevation: 6,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
+    shadowOpacity: 0.3,
     shadowRadius: 6,
-    elevation: 5,
-    zIndex: 10,
+    zIndex: 20,
+  },
+  centerTargetActive: {
+    borderWidth: 2,
+    borderColor: '#2563eb',
   },
   centerTargetIcon: {
-    fontSize: 20,
+    fontSize: 22,
   },
-  orderAddressCardOnMap: {
+  orderCardOnMap: {
     position: 'absolute',
     bottom: 12,
     left: 12,
     right: 12,
     backgroundColor: 'rgba(255, 255, 255, 0.96)',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
     borderRadius: 16,
+    padding: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
-    shadowRadius: 6,
-    elevation: 5,
-    zIndex: 10,
+    shadowRadius: 8,
+    elevation: 6,
+    zIndex: 20,
   },
-  addressItemRow: {
+  addressRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 8,
   },
-  addressLabelTitle: {
-    fontSize: 8,
+  addressIcon: {
+    fontSize: 14,
+  },
+  addressTitle: {
+    fontSize: 9,
     fontWeight: '800',
     color: '#64748b',
     letterSpacing: 0.5,
   },
-  addressDetailText: {
-    fontSize: 11,
+  addressSub: {
+    fontSize: 12,
     fontWeight: '700',
     color: '#0f172a',
-    marginTop: 1,
   },
-  addressDivider: {
+  cardDivider: {
     height: 1,
     backgroundColor: '#e2e8f0',
     marginVertical: 6,
   },
-  cardFooterMetricsRow: {
+  cardFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -792,161 +739,92 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: '#f1f5f9',
   },
-  etaTextValue: {
-    fontSize: 11,
+  metricText: {
+    fontSize: 12,
     fontWeight: '800',
     color: '#2563eb',
   },
-  statusPill: {
-    backgroundColor: '#dcfce7',
+  orderStatusPill: {
+    backgroundColor: '#eff6ff',
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#bfdbfe',
   },
-  statusDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#22c55e',
-  },
-  statusPillText: {
+  orderStatusText: {
     fontSize: 10,
     fontWeight: '800',
-    color: '#15803d',
+    color: '#1d4ed8',
+  },
+  waitingGpsBanner: {
+    marginTop: 6,
+    backgroundColor: '#fffbebfd',
+    padding: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#fcd34d',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  waitingGpsText: {
+    color: '#b45309',
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  offRouteBanner: {
+    marginTop: 6,
+    backgroundColor: '#fef2f2',
+    padding: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#fecaca',
+  },
+  offRouteText: {
+    color: '#dc2626',
+    fontSize: 10,
+    fontWeight: '800',
+    textAlign: 'center',
   },
   modalBackdrop: {
     flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.7)',
-    justifyContent: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
     alignItems: 'center',
+    justifyContent: 'center',
     padding: 20,
   },
-  gpsPromptCard: {
-    width: '100%',
-    maxWidth: 340,
+  gpsCard: {
     backgroundColor: '#ffffff',
-    borderRadius: 24,
+    borderRadius: 20,
     padding: 24,
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.3,
-    shadowRadius: 18,
-    elevation: 10,
+    width: '100%',
+    maxWidth: 340,
   },
-  gpsIconCircle: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: '#dbeafe',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 16,
-  },
-  gpsModalTitle: {
-    fontSize: 17,
+  gpsTitle: {
+    fontSize: 18,
     fontWeight: '800',
     color: '#0f172a',
-    textAlign: 'center',
     marginBottom: 8,
   },
-  gpsModalDesc: {
-    fontSize: 12,
+  gpsDesc: {
+    fontSize: 13,
     color: '#64748b',
     textAlign: 'center',
     lineHeight: 18,
     marginBottom: 20,
   },
-  gpsModalBtnCol: {
-    width: '100%',
-    gap: 10,
-  },
-  allowGpsBtn: {
-    width: '100%',
+  allowBtn: {
     backgroundColor: '#2563eb',
+    width: '100%',
     paddingVertical: 12,
-    borderRadius: 14,
+    borderRadius: 12,
     alignItems: 'center',
   },
-  allowGpsBtnText: {
+  allowBtnText: {
     color: '#ffffff',
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '800',
-  },
-  notNowBtn: {
-    width: '100%',
-    paddingVertical: 10,
-    alignItems: 'center',
-  },
-  notNowBtnText: {
-    color: '#64748b',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  modalCard: {
-    width: '100%',
-    maxWidth: 340,
-    backgroundColor: '#ffffff',
-    borderRadius: 20,
-    padding: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.25,
-    shadowRadius: 15,
-    elevation: 8,
-  },
-  modalTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#0f172a',
-    marginBottom: 6,
-  },
-  modalDesc: {
-    fontSize: 12,
-    color: '#64748b',
-    lineHeight: 18,
-    marginBottom: 14,
-  },
-  keyInput: {
-    width: '100%',
-    backgroundColor: '#f8fafc',
-    borderWidth: 1,
-    borderColor: '#cbd5e1',
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 12,
-    color: '#0f172a',
-    marginBottom: 16,
-  },
-  modalBtnRow: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: 10,
-  },
-  cancelBtn: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 10,
-    backgroundColor: '#f1f5f9',
-  },
-  cancelBtnText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#64748b',
-  },
-  saveBtn: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 10,
-    backgroundColor: '#2563eb',
-  },
-  saveBtnText: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#ffffff',
   },
 });

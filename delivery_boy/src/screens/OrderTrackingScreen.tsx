@@ -52,6 +52,7 @@ export function OrderTrackingScreen({
         {/* 2. DYNAMIC MAP SECTION */}
         <View style={trackingStyles.mapCanvasContainer}>
           <OrderMapView
+            orderId={(orderNumber || '').replace(/^Order\s*#/i, '').trim()}
             orderNumber={orderNumber}
             totalDistance={awayDistance}
             timeRemaining={etaMins}

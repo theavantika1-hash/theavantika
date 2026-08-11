@@ -111,11 +111,31 @@ const getOrderTracking = async (req, res) => {
     }
 };
 
+// Get road route, snapping info, road distance and ETA for an order
+const getOrderRoute = async (req, res) => {
+    try {
+        const { orderId } = req.params;
+        const { lat, lng } = req.query;
+        const routeData = await orderService.getOrderRouteInfo(orderId, lat, lng);
+        return res.status(200).json({
+            success: true,
+            data: routeData
+        });
+    } catch (error) {
+        return res.status(400).json({
+            success: false,
+            message: error.message || "Failed to calculate road route"
+        });
+    }
+};
+
 module.exports = {
     placeOrder,
     getAllOrders,
     getUserOrders,
     updateOrderStatus,
-    getOrderTracking
+    getOrderTracking,
+    getOrderRoute
 };
+
 
