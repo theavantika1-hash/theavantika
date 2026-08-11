@@ -37,50 +37,38 @@ export async function requestAppPermissions(): Promise<{
       console.log(`[LOCATION] Current permission = FINE:${fineCheck}, COARSE:${coarseCheck}`);
 
       if (fineCheck || coarseCheck) {
-        console.log('[LOCATION] Permission granted');
+        console.log('[LOCATION] Permission already granted');
         locationGranted = true;
         status = 'GRANTED';
       } else {
         console.log('[LOCATION] Requesting Android location permission');
 
-        // Primary: Request FINE location directly with Android system rationale dialog
-        const resFine = await PermissionsAndroid.request(
+        // Android 12+ (API 31+) REQUIRES ACCESS_FINE_LOCATION and ACCESS_COARSE_LOCATION to be requested TOGETHER in requestMultiple
+        const permissionsArray: any[] = [
           PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
-          {
-            title: 'Location Permission Required',
-            message: 'Delivery Boy App requires your precise GPS location to navigate delivery routes and update customers.',
-            buttonPositive: 'Allow Location Access',
-            buttonNegative: 'Cancel',
-          }
-        );
+          PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION,
+        ];
 
-        console.log('[LOCATION] Permission result =', resFine);
+        if (Platform.Version >= 33 && PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS) {
+          permissionsArray.push(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);
+        }
 
-        if (resFine === PermissionsAndroid.RESULTS.GRANTED) {
+        const grantedResults = await PermissionsAndroid.requestMultiple(permissionsArray);
+        console.log('[LOCATION] Permission result =', grantedResults);
+
+        const fineRes = grantedResults[PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION];
+        const coarseRes = grantedResults[PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION];
+
+        if (fineRes === PermissionsAndroid.RESULTS.GRANTED || coarseRes === PermissionsAndroid.RESULTS.GRANTED) {
           locationGranted = true;
           status = 'GRANTED';
           console.log('[LOCATION] Permission granted');
-        } else if (resFine === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN) {
+        } else if (fineRes === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN || coarseRes === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN) {
           status = 'NEVER_ASK_AGAIN';
           console.warn('[LOCATION] Permission permanently denied (NEVER_ASK_AGAIN)');
         } else {
-          // Secondary fallback: Request COARSE location if fine was refused
-          const resCoarse = await PermissionsAndroid.request(
-            PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION,
-            {
-              title: 'Approximate Location Required',
-              message: 'Delivery Boy App needs approximate location for order routing.',
-              buttonPositive: 'Allow',
-            }
-          );
-          if (resCoarse === PermissionsAndroid.RESULTS.GRANTED) {
-            locationGranted = true;
-            status = 'GRANTED';
-            console.log('[LOCATION] Permission granted (coarse)');
-          } else {
-            status = resCoarse === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN ? 'NEVER_ASK_AGAIN' : 'DENIED';
-            console.warn('[LOCATION] Permission denied');
-          }
+          status = 'DENIED';
+          console.warn('[LOCATION] Permission denied');
         }
       }
 

@@ -1,4 +1,5 @@
 import { Platform } from 'react-native';
+import Geolocation from '@react-native-community/geolocation';
 import { requestAppPermissions } from '../utils/permissionHelper';
 import { emitDeliveryLocation, LocationPayload } from './socketService';
 import { getHaversineDistanceMeters } from './routingService';
@@ -16,6 +17,8 @@ export interface LocationFix {
   isLive: boolean;
   hasRealGpsFix: boolean;
   gpsStatus: GpsStatusType;
+  errorCode?: number;
+  errorMessage?: string;
 }
 
 let lastValidFix: LocationFix = {
@@ -38,6 +41,17 @@ let pollTimer: any = null;
 
 const locationFixListeners: Array<(fix: LocationFix) => void> = [];
 
+// Configure native Geolocation settings for Android Fused Provider
+try {
+  Geolocation.setRNConfiguration({
+    skipPermissionRequests: false,
+    authorizationLevel: 'auto',
+    locationProvider: 'auto',
+  });
+} catch (e) {
+  console.warn('[GPS] Config error:', e);
+}
+
 /**
  * Configure active Order ID and Delivery Boy ID for streaming
  */
@@ -47,7 +61,7 @@ export function setTrackingContext(orderId?: string | null, deliveryBoyId?: stri
 }
 
 /**
- * Validate incoming GPS fix according to Quality Control rules (PART 2)
+ * Validate incoming GPS fix according to Quality Control rules
  */
 export function validateGpsFix(rawFix: Partial<LocationFix>): LocationFix | null {
   const { latitude, longitude, accuracy = 0, heading = 0, speed = 0, timestamp = Date.now() } = rawFix;
@@ -105,7 +119,7 @@ export function validateGpsFix(rawFix: Partial<LocationFix>): LocationFix | null
     }
   }
 
-  console.log(`[GPS CALLBACK] lat: ${lat} lng: ${lng} accuracy: ${accuracy}m heading: ${heading} speed: ${speed}`);
+  console.log(`[GPS LOCATION CALLBACK RECEIVED] lat: ${lat} lng: ${lng} accuracy: ${accuracy}m heading: ${heading} speed: ${speed} timestamp: ${timestamp}`);
 
   const validFix: LocationFix = {
     latitude: lat,
@@ -131,7 +145,7 @@ function handleNewLocationFix(rawFix: Partial<LocationFix>) {
 
   lastValidFix = validFix;
 
-  // Stream fix to Socket.IO backend (PART 3 & PART 4)
+  // Stream fix to Socket.IO backend
   const payload: LocationPayload = {
     orderId: activeOrderId || undefined,
     deliveryBoyId: activeDeliveryBoyId || undefined,
@@ -167,7 +181,8 @@ export async function startLiveLocationTracking(orderId?: string, deliveryBoyId?
   if (isTrackingActive) return;
   isTrackingActive = true;
 
-  console.log('[LOCATION] screen opened');
+  console.log('[GPS] TRACKING SCREEN MOUNTED');
+  console.log('[GPS] TRACKING SCREEN ACTIVE');
 
   // 1. Request Runtime Permission
   const permRes = await requestAppPermissions();
@@ -182,73 +197,86 @@ export async function startLiveLocationTracking(orderId?: string, deliveryBoyId?
   lastValidFix.gpsStatus = 'SEARCHING';
   locationFixListeners.forEach(cb => cb({ ...lastValidFix }));
 
-  const globalNav = typeof globalThis !== 'undefined' ? (globalThis as any).navigator : undefined;
+  console.log('[GPS] STARTING LOCATION WATCHER');
+  console.log('[GPS] REQUESTING FIRST LOCATION');
 
-  if (globalNav && globalNav.geolocation) {
-    const fetchCurrentPos = (highAccuracy: boolean) => {
-      globalNav.geolocation.getCurrentPosition(
-        (pos: any) => {
-          console.log(`[GPS SUCCESS] highAccuracy:${highAccuracy}`, pos?.coords);
-          if (pos?.coords) {
-            handleNewLocationFix({
-              latitude: pos.coords.latitude,
-              longitude: pos.coords.longitude,
-              accuracy: pos.coords.accuracy || 10,
-              heading: pos.coords.heading || 0,
-              speed: pos.coords.speed || 0,
-              timestamp: pos.timestamp || Date.now(),
-            });
-          }
-        },
-        (err: any) => {
-          console.warn(`[GPS NOTICE] highAccuracy:${highAccuracy}`, err?.message || err);
-          if (highAccuracy) {
-            // Fallback to network/cell provider if satellite high accuracy is pending
-            fetchCurrentPos(false);
-          }
-        },
-        { enableHighAccuracy: highAccuracy, timeout: 8000, maximumAge: 10000 }
-      );
-    };
+  // 2. Immediate FIRST location fetch via native Geolocation
+  Geolocation.getCurrentPosition(
+    (pos: any) => {
+      console.log('[GPS] FIRST LOCATION SUCCESS', pos?.coords);
+      if (pos?.coords) {
+        handleNewLocationFix({
+          latitude: pos.coords.latitude,
+          longitude: pos.coords.longitude,
+          accuracy: pos.coords.accuracy || 10,
+          heading: pos.coords.heading || 0,
+          speed: pos.coords.speed || 0,
+          timestamp: pos.timestamp || Date.now(),
+        });
+      }
+    },
+    (err: any) => {
+      console.warn('[GPS] FIRST LOCATION ERROR', err?.code, err?.message);
+      if (!lastValidFix.hasRealGpsFix) {
+        lastValidFix.errorCode = err?.code;
+        lastValidFix.errorMessage = err?.message;
+        locationFixListeners.forEach(cb => cb({ ...lastValidFix }));
+      }
+    },
+    { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }
+  );
 
-    // Immediate dual fetch (High Accuracy + Network Provider Fallback)
-    fetchCurrentPos(true);
-    fetchCurrentPos(false);
-
-    // Continuous watchPosition
-    try {
-      gpsWatchId = globalNav.geolocation.watchPosition(
-        (pos: any) => {
-          if (pos?.coords) {
-            handleNewLocationFix({
-              latitude: pos.coords.latitude,
-              longitude: pos.coords.longitude,
-              accuracy: pos.coords.accuracy,
-              heading: pos.coords.heading,
-              speed: pos.coords.speed,
-              timestamp: pos.timestamp || Date.now(),
-            });
-          }
-        },
-        (err: any) => {
-          console.warn('[GPS WATCH NOTICE]', err?.message || err);
-        },
-        {
-          enableHighAccuracy: false, // Network/Fused provider is fastest on Android
-          timeout: 10000,
-          maximumAge: 5000,
-          distanceFilter: 1,
+  // 3. Continuous Native Location Watcher
+  try {
+    gpsWatchId = Geolocation.watchPosition(
+      (pos: any) => {
+        console.log('[GPS] LOCATION CALLBACK RECEIVED', pos?.coords);
+        if (pos?.coords) {
+          handleNewLocationFix({
+            latitude: pos.coords.latitude,
+            longitude: pos.coords.longitude,
+            accuracy: pos.coords.accuracy,
+            heading: pos.coords.heading,
+            speed: pos.coords.speed,
+            timestamp: pos.timestamp || Date.now(),
+          });
         }
-      );
-    } catch (e) {
-      console.warn('[GPS] Watcher registration error:', e);
-    }
+      },
+      (err: any) => {
+        console.warn('[GPS WATCH ERROR]', err?.code, err?.message);
+      },
+      {
+        enableHighAccuracy: true,
+        distanceFilter: 1,
+        interval: 2000,
+        fastestInterval: 1000,
+      }
+    );
 
-    // Periodic 2-second polling to ensure continuous fixes on emulator/device
-    pollTimer = setInterval(() => {
-      fetchCurrentPos(false);
-    }, 2000);
+    console.log('[GPS] WATCHER STARTED watcherId =', gpsWatchId);
+  } catch (e: any) {
+    console.warn('[GPS] Watcher registration error:', e?.message || e);
   }
+
+  // 4. Backup periodic poll if watcher is idle
+  pollTimer = setInterval(() => {
+    Geolocation.getCurrentPosition(
+      (pos: any) => {
+        if (pos?.coords) {
+          handleNewLocationFix({
+            latitude: pos.coords.latitude,
+            longitude: pos.coords.longitude,
+            accuracy: pos.coords.accuracy,
+            heading: pos.coords.heading,
+            speed: pos.coords.speed,
+            timestamp: pos.timestamp || Date.now(),
+          });
+        }
+      },
+      () => {},
+      { enableHighAccuracy: false, timeout: 5000, maximumAge: 10000 }
+    );
+  }, 2000);
 }
 
 /**
@@ -274,11 +302,11 @@ export function subscribeLocationFixes(callback: (fix: LocationFix) => void) {
  * Stop continuous location tracking
  */
 export function stopLiveLocationTracking() {
-  const globalNav = typeof globalThis !== 'undefined' ? (globalThis as any).navigator : undefined;
+  console.log('[GPS] TRACKING SCREEN UNMOUNTED');
 
-  if (gpsWatchId !== null && globalNav && globalNav.geolocation) {
+  if (gpsWatchId !== null) {
     try {
-      globalNav.geolocation.clearWatch(gpsWatchId);
+      Geolocation.clearWatch(gpsWatchId);
     } catch (e) {}
     gpsWatchId = null;
   }

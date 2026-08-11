@@ -108,11 +108,13 @@ export function OrderMapView({
       console.log('[LOCATION] screen opened');
       console.log('[LOCATION] checking permission');
 
-      const status = await checkPermissionsStatus();
-      if (!status.locationGranted) {
-        setShowGpsPromptModal(true);
-      } else {
+      const permRes = await requestAppPermissions();
+      if (permRes.locationGranted) {
         setLocationPermGranted(true);
+        setShowGpsPromptModal(false);
+      } else {
+        setLocationPermGranted(false);
+        setShowGpsPromptModal(true);
       }
 
       await startLiveLocationTracking(orderId, deliveryBoyId);
@@ -131,8 +133,9 @@ export function OrderMapView({
     const unsubGps = subscribeLocationFixes(fix => {
       if (!unmounted && fix) {
         setRiderFix(fix);
-        if (fix.gpsStatus !== 'PERMISSION_DENIED') {
+        if (fix.gpsStatus !== 'PERMISSION_DENIED' && fix.gpsStatus !== 'INITIALIZING') {
           setLocationPermGranted(true);
+          setShowGpsPromptModal(false);
         }
       }
     });
