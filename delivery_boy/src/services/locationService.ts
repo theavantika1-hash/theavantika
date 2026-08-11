@@ -71,15 +71,15 @@ export function validateGpsFix(rawFix: Partial<LocationFix>): LocationFix | null
     return null;
   }
 
-  // 3. Extremely inaccurate GPS readings (> 50 meters)
-  if (accuracy > 50) {
-    console.warn(`[GPS QC] Rejected low accuracy fix: ${accuracy}m > 50m`);
+  // 3. Extremely inaccurate GPS readings (> 500 meters threshold for initial emulator fix)
+  if (accuracy > 500) {
+    console.warn(`[GPS QC] Rejected low accuracy fix: ${accuracy}m > 500m`);
     return null;
   }
 
-  // 4. Stale timestamp filter (> 30 seconds old)
+  // 4. Stale timestamp filter (> 60 seconds old)
   const now = Date.now();
-  if (timestamp > 0 && now - timestamp > 30000) {
+  if (timestamp > 0 && now - timestamp > 60000) {
     console.warn('[GPS QC] Rejected stale timestamp fix');
     return null;
   }
@@ -96,7 +96,7 @@ export function validateGpsFix(rawFix: Partial<LocationFix>): LocationFix | null
       );
       const calculatedSpeedMs = distMeters / timeDiffSec;
 
-      if (calculatedSpeedMs > 42 && distMeters > 100) {
+      if (calculatedSpeedMs > 42 && distMeters > 200) {
         console.warn(
           `[GPS QC] Rejected impossible GPS jump: ${Math.round(distMeters)}m in ${timeDiffSec.toFixed(1)}s (${Math.round(calculatedSpeedMs * 3.6)} km/h)`
         );
@@ -184,8 +184,38 @@ export async function startLiveLocationTracking(orderId?: string, deliveryBoyId?
 
   const globalNav = typeof globalThis !== 'undefined' ? (globalThis as any).navigator : undefined;
 
-  // 2. High-accuracy continuous GPS watcher (1-3 second target)
   if (globalNav && globalNav.geolocation) {
+    const fetchCurrentPos = (highAccuracy: boolean) => {
+      globalNav.geolocation.getCurrentPosition(
+        (pos: any) => {
+          console.log(`[GPS SUCCESS] highAccuracy:${highAccuracy}`, pos?.coords);
+          if (pos?.coords) {
+            handleNewLocationFix({
+              latitude: pos.coords.latitude,
+              longitude: pos.coords.longitude,
+              accuracy: pos.coords.accuracy || 10,
+              heading: pos.coords.heading || 0,
+              speed: pos.coords.speed || 0,
+              timestamp: pos.timestamp || Date.now(),
+            });
+          }
+        },
+        (err: any) => {
+          console.warn(`[GPS NOTICE] highAccuracy:${highAccuracy}`, err?.message || err);
+          if (highAccuracy) {
+            // Fallback to network/cell provider if satellite high accuracy is pending
+            fetchCurrentPos(false);
+          }
+        },
+        { enableHighAccuracy: highAccuracy, timeout: 8000, maximumAge: 10000 }
+      );
+    };
+
+    // Immediate dual fetch (High Accuracy + Network Provider Fallback)
+    fetchCurrentPos(true);
+    fetchCurrentPos(false);
+
+    // Continuous watchPosition
     try {
       gpsWatchId = globalNav.geolocation.watchPosition(
         (pos: any) => {
@@ -201,38 +231,23 @@ export async function startLiveLocationTracking(orderId?: string, deliveryBoyId?
           }
         },
         (err: any) => {
-          console.warn('[GPS] Watch position notice:', err?.message || err);
+          console.warn('[GPS WATCH NOTICE]', err?.message || err);
         },
         {
-          enableHighAccuracy: true,
+          enableHighAccuracy: false, // Network/Fused provider is fastest on Android
           timeout: 10000,
-          maximumAge: 1000,
-          distanceFilter: 2, // Update on 2 meter change
+          maximumAge: 5000,
+          distanceFilter: 1,
         }
       );
     } catch (e) {
       console.warn('[GPS] Watcher registration error:', e);
     }
 
-    // Backup 3-second poll if watcher stalls
+    // Periodic 2-second polling to ensure continuous fixes on emulator/device
     pollTimer = setInterval(() => {
-      globalNav.geolocation.getCurrentPosition(
-        (pos: any) => {
-          if (pos?.coords) {
-            handleNewLocationFix({
-              latitude: pos.coords.latitude,
-              longitude: pos.coords.longitude,
-              accuracy: pos.coords.accuracy,
-              heading: pos.coords.heading,
-              speed: pos.coords.speed,
-              timestamp: pos.timestamp || Date.now(),
-            });
-          }
-        },
-        () => {},
-        { enableHighAccuracy: true, timeout: 5000, maximumAge: 1000 }
-      );
-    }, 3000);
+      fetchCurrentPos(false);
+    }, 2000);
   }
 }
 

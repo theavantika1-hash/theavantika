@@ -9,7 +9,7 @@ import {
   Alert,
 } from 'react-native';
 import WebView from 'react-native-webview';
-import { requestAppPermissions, checkPermissionsStatus } from '../utils/permissionHelper';
+import { requestAppPermissions, checkPermissionsStatus, openAppSettings } from '../utils/permissionHelper';
 import {
   startLiveLocationTracking,
   subscribeLocationFixes,
@@ -571,7 +571,24 @@ export function OrderMapView({
             </View>
           </View>
 
-          {!riderFix.hasRealGpsFix && (
+          {!locationPermGranted && (
+            <View style={styles.permissionDeniedCard}>
+              <Text style={styles.permissionDeniedTitle}>⚠️ Location Permission Disabled</Text>
+              <Text style={styles.permissionDeniedDesc}>
+                Please enable Location permission from Settings to track your delivery.
+              </Text>
+              <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+                <TouchableOpacity style={[styles.allowBtn, { flex: 1, backgroundColor: '#475569' }]} onPress={openAppSettings}>
+                  <Text style={styles.allowBtnText}>⚙️ Open Settings</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.allowBtn, { flex: 1 }]} onPress={handleAllowGps}>
+                  <Text style={styles.allowBtnText}>Request Again</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+
+          {locationPermGranted && !riderFix.hasRealGpsFix && (
             <View style={styles.waitingGpsBanner}>
               <ActivityIndicator size="small" color="#d97706" style={{ marginRight: 6 }} />
               <Text style={styles.waitingGpsText}>Waiting for Physical Device GPS fix...</Text>
@@ -601,6 +618,9 @@ export function OrderMapView({
             </Text>
             <TouchableOpacity style={styles.allowBtn} onPress={handleAllowGps}>
               <Text style={styles.allowBtnText}>Grant Location Permission</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.allowBtn, { backgroundColor: '#475569', marginTop: 10 }]} onPress={openAppSettings}>
+              <Text style={styles.allowBtnText}>⚙️ Open Device Settings</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -787,6 +807,25 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     textAlign: 'center',
   },
+  permissionDeniedCard: {
+    marginTop: 8,
+    backgroundColor: '#fef2f2',
+    padding: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#fecaca',
+  },
+  permissionDeniedTitle: {
+    color: '#991b1b',
+    fontSize: 12,
+    fontWeight: '800',
+    marginBottom: 2,
+  },
+  permissionDeniedDesc: {
+    color: '#b91c1c',
+    fontSize: 11,
+    fontWeight: '500',
+  },
   modalBackdrop: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.6)',
@@ -828,3 +867,4 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
 });
+
