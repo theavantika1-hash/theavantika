@@ -405,7 +405,7 @@ function App() {
         setPlacedOrderId(newOrderId)
         setLastTrackedOrder(newOrderId)
         localStorage.setItem('avantika_last_tracked_order', newOrderId)
-        setShowTrackingModal(true)
+        setActiveTrackingOrder(newOrderId)
         const itemsSummaryStr = cart.map(item => `${item.quantity}x ${item.name}`).join(', ')
         setOrderHistory(prev => [
           { id: newOrderId, date: new Date().toISOString().split('T')[0], total: `₹${grandTotalVal}`, status: 'Requested', items: itemsSummaryStr },
@@ -415,14 +415,14 @@ function App() {
         setPlacedOrderId(orderIdVal)
         setLastTrackedOrder(orderIdVal)
         localStorage.setItem('avantika_last_tracked_order', orderIdVal)
-        setShowTrackingModal(true)
+        setActiveTrackingOrder(orderIdVal)
       }
     } catch (err) {
       console.error('Error placing order API:', err)
       setPlacedOrderId(orderIdVal)
       setLastTrackedOrder(orderIdVal)
       localStorage.setItem('avantika_last_tracked_order', orderIdVal)
-      setShowTrackingModal(true)
+      setActiveTrackingOrder(orderIdVal)
     }
 
     setPaymentLoading(false)

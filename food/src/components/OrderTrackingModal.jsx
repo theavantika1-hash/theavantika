@@ -214,19 +214,57 @@ export const OrderTrackingModal = ({ order, onClose }) => {
         });
       }
 
+      // Dynamic Routing:
+      // Stage 1 (Before Pick Up): Rider -> Restaurant -> Customer (Waypoint route)
+      // Stage 2 (After Pick Up): Rider -> Customer
+      // Fallback: Restaurant -> Customer
+      const hasLiveLocation = trackingData?.deliveryBoy?.location?.latitude && trackingData?.deliveryBoy?.location?.longitude;
+      const liveRiderLat = trackingData?.deliveryBoy?.location?.latitude || restLat;
+      const liveRiderLng = trackingData?.deliveryBoy?.location?.longitude || restLng;
+      const riderPos = { lat: Number(liveRiderLat), lng: Number(liveRiderLng) };
+
+      let routeOrigin = restPos;
+      let routeDestination = userPos;
+      let routeWaypoints = [];
+
+      if (hasLiveLocation) {
+        if (currentStatus === 'Out for Delivery' || currentStatus === 'Picked Up' || currentStatus === 'Delivered') {
+          // Stage 2: Rider heading directly to Customer
+          routeOrigin = riderPos;
+          routeDestination = userPos;
+        } else {
+          // Stage 1: Rider heading to Restaurant first, then to Customer
+          routeOrigin = riderPos;
+          routeWaypoints = [{ location: restPos, stopover: true }];
+          routeDestination = userPos;
+        }
+      }
+
       directionsService.route(
         {
-          origin: restPos,
-          destination: userPos,
+          origin: routeOrigin,
+          destination: routeDestination,
+          waypoints: routeWaypoints,
           travelMode: window.google.maps.TravelMode.DRIVING
         },
         (result, status) => {
           if (status === 'OK' && result) {
             directionsRendererRef.current.setDirections(result);
-            const leg = result.routes[0]?.legs[0];
-            if (leg) {
-              setDistanceText(leg.distance.text);
-              setDurationText(leg.duration.text);
+            const legs = result.routes[0]?.legs || [];
+            
+            // Sum up distance and duration across all route legs
+            let totalDistanceMeters = 0;
+            let totalDurationSeconds = 0;
+            legs.forEach(leg => {
+              totalDistanceMeters += leg.distance.value;
+              totalDurationSeconds += leg.duration.value;
+            });
+
+            if (legs.length > 0) {
+              const distanceKm = (totalDistanceMeters / 1000).toFixed(1);
+              const durationMins = Math.round(totalDurationSeconds / 60);
+              setDistanceText(`${distanceKm} km`);
+              setDurationText(`${durationMins} mins`);
             }
           }
         }
@@ -258,10 +296,7 @@ export const OrderTrackingModal = ({ order, onClose }) => {
         });
       }
 
-      // Rider Marker Pin using REAL-TIME GPS coordinates
-      const liveRiderLat = trackingData?.deliveryBoy?.location?.latitude || restLat;
-      const liveRiderLng = trackingData?.deliveryBoy?.location?.longitude || restLng;
-      const riderPos = { lat: Number(liveRiderLat), lng: Number(liveRiderLng) };
+      // Rider Marker Pin using REAL-TIME GPS coordinates (using variables declared above)
 
       if (!riderMarkerRef.current) {
         riderMarkerRef.current = new window.google.maps.Marker({
@@ -276,6 +311,13 @@ export const OrderTrackingModal = ({ order, onClose }) => {
       } else {
         riderMarkerRef.current.setPosition(riderPos);
       }
+
+      // Automatically adjust map boundaries to show Restaurant, User, and live Rider together
+      const bounds = new window.google.maps.LatLngBounds();
+      bounds.extend(restPos);
+      bounds.extend(userPos);
+      bounds.extend(riderPos);
+      map.fitBounds(bounds);
     } catch (e) {
       console.warn('Google maps rendering notice:', e);
     }
