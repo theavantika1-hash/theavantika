@@ -6,7 +6,6 @@ import {
   StyleSheet,
   ActivityIndicator,
   Modal,
-  Alert,
 } from 'react-native';
 import WebView from 'react-native-webview';
 import { requestAppPermissions, checkPermissionsStatus, openAppSettings } from '../utils/permissionHelper';
@@ -26,6 +25,7 @@ import {
   fetchRoadRoute,
   snapGpsToRoadPolyline,
   segmentRoute,
+  getHaversineDistanceMeters,
   RoutePoint,
 } from '../services/routingService';
 
@@ -72,7 +72,7 @@ export function OrderMapView({
 }: OrderMapViewProps) {
   const webViewRef = useRef<any>(null);
 
-  // Real GPS Fix State - NO FAKE / HARDCODED INITIAL COORDINATES
+  // Real GPS Fix State - Sourced 100% from physical device GPS
   const [riderFix, setRiderFix] = useState<LocationFix>({
     latitude: null,
     longitude: null,
@@ -93,12 +93,22 @@ export function OrderMapView({
   const [showGpsPromptModal, setShowGpsPromptModal] = useState<boolean>(false);
   const [isMapLoaded, setIsMapLoaded] = useState<boolean>(false);
 
+  // Routing & Google Routes API States
   const [fullRoutePoints, setFullRoutePoints] = useState<RoutePoint[]>([]);
   const [remainingRoutePoints, setRemainingRoutePoints] = useState<RoutePoint[]>([]);
   const [traveledRoutePoints, setTraveledRoutePoints] = useState<RoutePoint[]>([]);
   const [roadDistanceKm, setRoadDistanceKm] = useState<string>(totalDistance);
   const [roadEtaMins, setRoadEtaMins] = useState<string>(timeRemaining);
+  const [trafficStatus, setTrafficStatus] = useState<string>('NORMAL');
+  const [routingSource, setRoutingSource] = useState<string>('INITIALIZING');
   const [isOffRoute, setIsOffRoute] = useState<boolean>(false);
+  const [isRerouting, setIsRerouting] = useState<boolean>(false);
+  const [lastRouteUpdateSec, setLastRouteUpdateSec] = useState<number>(0);
+
+  // Route Throttling & In-flight Locks
+  const lastRouteOriginRef = useRef<{ latitude: number; longitude: number } | null>(null);
+  const isRouteFetchInProgressRef = useRef<boolean>(false);
+  const lastRouteFetchTimeRef = useRef<number>(0);
 
   // 1. Initial Permission Check & Runtime GPS Request
   useEffect(() => {
@@ -166,36 +176,67 @@ export function OrderMapView({
     };
   }, [orderId, deliveryBoyId]);
 
-  // 2. Fetch Initial Road Network Route
-  useEffect(() => {
-    let active = true;
-    const loadRoadRoute = async () => {
+  // 2. Fetch Road Route (Google Routes API / Backend Engine) with Throttling & Rerouting
+  const requestRouteUpdate = async (forcedReroute = false) => {
+    if (isRouteFetchInProgressRef.current) return;
+
+    const now = Date.now();
+    const currentOrigin = riderFix.latitude !== null && riderFix.longitude !== null
+      ? { latitude: riderFix.latitude, longitude: riderFix.longitude }
+      : { latitude: restaurantLat, longitude: restaurantLng };
+
+    // Threshold check: Don't call Google Routes API every 1-3 seconds unless moved > 50m or forced reroute
+    if (!forcedReroute && fullRoutePoints.length > 0 && lastRouteOriginRef.current) {
+      const movedMeters = getHaversineDistanceMeters(
+        lastRouteOriginRef.current.latitude,
+        lastRouteOriginRef.current.longitude,
+        currentOrigin.latitude,
+        currentOrigin.longitude
+      );
+      if (movedMeters < 50 && now - lastRouteFetchTimeRef.current < 30000) {
+        return;
+      }
+    }
+
+    isRouteFetchInProgressRef.current = true;
+    if (forcedReroute) setIsRerouting(true);
+
+    try {
       const isBeforePickup =
         (orderStatus || '').toUpperCase().includes('ASSIGNED') ||
         (orderStatus || '').toUpperCase().includes('ACCEPTED') ||
         (orderStatus || '').toUpperCase().includes('RESTAURANT');
 
-      const origin = riderFix.latitude !== null && riderFix.longitude !== null
-        ? { latitude: riderFix.latitude, longitude: riderFix.longitude }
-        : { latitude: restaurantLat, longitude: restaurantLng };
-
       const waypoints = isBeforePickup
-        ? [origin, { latitude: restaurantLat, longitude: restaurantLng }]
-        : [origin, { latitude: customerLat, longitude: customerLng }];
+        ? [currentOrigin, { latitude: restaurantLat, longitude: restaurantLng }]
+        : [currentOrigin, { latitude: customerLat, longitude: customerLng }];
 
       const res = await fetchRoadRoute(waypoints, orderId);
-      if (active && res.points.length > 0) {
+      if (res && res.points.length > 0) {
         setFullRoutePoints(res.points);
         setRoadDistanceKm(`${res.distanceKm} km`);
         setRoadEtaMins(`${res.durationMins} mins`);
-      }
-    };
 
-    loadRoadRoute();
-    return () => {
-      active = false;
-    };
-  }, [restaurantLat, restaurantLng, customerLat, customerLng, orderStatus, orderId, riderFix.latitude, riderFix.longitude]);
+        if ((res as any).trafficStatus) setTrafficStatus((res as any).trafficStatus);
+        if (res.source) setRoutingSource(res.source);
+
+        lastRouteOriginRef.current = currentOrigin;
+        lastRouteFetchTimeRef.current = now;
+        setLastRouteUpdateSec(0);
+        setIsOffRoute(false);
+      }
+    } catch (err) {
+      console.warn('[ROUTING UPDATE ERROR]', err);
+    } finally {
+      isRouteFetchInProgressRef.current = false;
+      setIsRerouting(false);
+    }
+  };
+
+  // Trigger initial route request & evaluate threshold / off-route recalculations
+  useEffect(() => {
+    requestRouteUpdate(false);
+  }, [restaurantLat, restaurantLng, customerLat, customerLng, orderStatus, orderId]);
 
   // 3. Process GPS Snapping & Route Segmentation strictly when real GPS fix is available
   useEffect(() => {
@@ -212,27 +253,24 @@ export function OrderMapView({
     setTraveledRoutePoints(segmented.traveledRoute);
     setRemainingRoutePoints(segmented.remainingRoute);
 
+    // If Rider is OFF-ROUTE > 50m, trigger automatic rerouting
     if (snap.isOffRoute) {
-      const recalculateOffRoute = async () => {
-        const isBeforePickup = (orderStatus || '').toUpperCase().includes('RESTAURANT');
-        const target = isBeforePickup
-          ? { latitude: restaurantLat, longitude: restaurantLng }
-          : { latitude: customerLat, longitude: customerLng };
-
-        const newRoute = await fetchRoadRoute([
-          { latitude: riderFix.latitude!, longitude: riderFix.longitude! },
-          target,
-        ]);
-
-        if (newRoute.points.length > 0) {
-          setFullRoutePoints(newRoute.points);
-          setRoadDistanceKm(`${newRoute.distanceKm} km`);
-          setRoadEtaMins(`${newRoute.durationMins} mins`);
-        }
-      };
-      recalculateOffRoute();
+      requestRouteUpdate(true);
+    } else {
+      // Check if moved > 50m from last route origin
+      requestRouteUpdate(false);
     }
-  }, [riderFix.latitude, riderFix.longitude, fullRoutePoints, orderStatus, restaurantLat, restaurantLng, customerLat, customerLng]);
+  }, [riderFix.latitude, riderFix.longitude, fullRoutePoints]);
+
+  // Track time since last route update
+  useEffect(() => {
+    const timer = setInterval(() => {
+      if (lastRouteFetchTimeRef.current > 0) {
+        setLastRouteUpdateSec(Math.floor((Date.now() - lastRouteFetchTimeRef.current) / 1000));
+      }
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   // 4. Send Real-Time Updates to Leaflet Map inside WebView
   useEffect(() => {
@@ -258,7 +296,7 @@ export function OrderMapView({
     webViewRef.current.injectJavaScript(script);
   }, [riderFix.hasRealGpsFix, riderFix.latitude, riderFix.longitude, snappedLat, snappedLng, riderFix.heading, restaurantLat, restaurantLng, customerLat, customerLng, remainingRoutePoints, traveledRoutePoints, isFollowMode, isMapLoaded]);
 
-  // Calculate GPS Status & Timestamp Diff (PART 10 & 11)
+  // Calculate GPS Status & Timestamp Diff
   const timeSinceUpdateSec = riderFix.timestamp > 0 ? Math.floor((Date.now() - riderFix.timestamp) / 1000) : 999;
   let activeGpsStatus: GpsStatusType = riderFix.gpsStatus;
 
@@ -293,7 +331,6 @@ export function OrderMapView({
     }
   };
 
-  // Base map center point
   const mapCenterLat = restaurantLat;
   const mapCenterLng = restaurantLng;
 
@@ -490,7 +527,7 @@ export function OrderMapView({
         )}
       </View>
 
-      {/* REQUIRED DEVELOPMENT DEBUG BAR OVERLAY (PART 17) */}
+      {/* DEVELOPMENT DEBUG BAR OVERLAY (GOOGLE ROUTES API & GPS) */}
       <View style={styles.debugPanel}>
         <View style={styles.debugRow}>
           <Text style={styles.debugLabel}>Permission:</Text>
@@ -508,25 +545,32 @@ export function OrderMapView({
         </View>
 
         <View style={styles.debugRow}>
-          <Text style={styles.debugLabel}>Lat:</Text>
+          <Text style={styles.debugLabel}>Rider:</Text>
           <Text style={styles.debugVal}>
-            {riderFix.latitude !== null ? riderFix.latitude.toFixed(6) : 'Waiting for GPS...'}
-          </Text>
-          <Text style={styles.debugLabel}> | Lng:</Text>
-          <Text style={styles.debugVal}>
-            {riderFix.longitude !== null ? riderFix.longitude.toFixed(6) : 'Waiting for GPS...'}
+            {riderFix.latitude !== null ? `${riderFix.latitude.toFixed(5)}, ${riderFix.longitude?.toFixed(5)}` : 'Waiting for GPS...'}
           </Text>
           <Text style={styles.debugLabel}> | Acc:</Text>
           <Text style={styles.debugVal}>{riderFix.accuracy}m</Text>
         </View>
 
         <View style={styles.debugRow}>
-          <Text style={styles.debugLabel}>Marker Source:</Text>
-          <Text style={[styles.debugVal, { color: riderFix.hasRealGpsFix ? '#22c55e' : '#f59e0b' }]}>
-            {riderFix.hasRealGpsFix ? 'REAL PHYSICAL DEVICE GPS' : 'NONE (Waiting for Physical GPS)'}
+          <Text style={styles.debugLabel}>Route:</Text>
+          <Text style={[styles.debugVal, { color: '#38bdf8' }]}>
+            {routingSource.includes('GOOGLE') ? 'GOOGLE_ROUTES_API' : routingSource}
           </Text>
-          <Text style={styles.debugLabel}> | Updated:</Text>
-          <Text style={styles.debugVal}>{timeSinceUpdateSec < 900 ? `${timeSinceUpdateSec}s ago` : 'Never'}</Text>
+          <Text style={styles.debugLabel}> | Traffic:</Text>
+          <Text style={[styles.debugVal, { color: trafficStatus === 'HEAVY' ? '#ef4444' : trafficStatus === 'MODERATE' ? '#f59e0b' : '#22c55e' }]}>
+            {trafficStatus === 'HEAVY' ? '🔴 HEAVY' : trafficStatus === 'MODERATE' ? '🟡 MODERATE' : '🟢 NORMAL'}
+          </Text>
+        </View>
+
+        <View style={styles.debugRow}>
+          <Text style={styles.debugLabel}>Distance:</Text>
+          <Text style={styles.debugVal}>{roadDistanceKm}</Text>
+          <Text style={styles.debugLabel}> | ETA:</Text>
+          <Text style={styles.debugVal}>{roadEtaMins}</Text>
+          <Text style={styles.debugLabel}> | Last Route Update:</Text>
+          <Text style={styles.debugVal}>{lastRouteUpdateSec < 900 ? `${lastRouteUpdateSec}s ago` : 'Never'}</Text>
         </View>
       </View>
 
@@ -598,7 +642,14 @@ export function OrderMapView({
             </View>
           )}
 
-          {isOffRoute && riderFix.hasRealGpsFix && (
+          {isRerouting && (
+            <View style={styles.reroutingBanner}>
+              <ActivityIndicator size="small" color="#2563eb" style={{ marginRight: 6 }} />
+              <Text style={styles.reroutingText}>🔄 Rerouting... Updating road polyline via Google Routes API</Text>
+            </View>
+          )}
+
+          {isOffRoute && !isRerouting && riderFix.hasRealGpsFix && (
             <View style={styles.offRouteBanner}>
               <Text style={styles.offRouteText}>⚠️ Off Route Detected — Recalculating Road Path...</Text>
             </View>
@@ -796,6 +847,22 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '800',
   },
+  reroutingBanner: {
+    marginTop: 6,
+    backgroundColor: '#eff6ff',
+    padding: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#bfdbfe',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  reroutingText: {
+    color: '#1d4ed8',
+    fontSize: 10,
+    fontWeight: '800',
+  },
   offRouteBanner: {
     marginTop: 6,
     backgroundColor: '#fef2f2',
@@ -870,4 +937,3 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
 });
-

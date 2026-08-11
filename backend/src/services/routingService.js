@@ -18,6 +18,43 @@ function getHaversineDistanceMeters(lat1, lon1, lat2, lon2) {
 }
 
 /**
+ * Decode Google Encoded Polyline algorithm into [{latitude, longitude}]
+ */
+function decodePolyline(encoded) {
+  if (!encoded) return [];
+  const points = [];
+  let index = 0, len = encoded.length;
+  let lat = 0, lng = 0;
+
+  while (index < len) {
+    let b, shift = 0, result = 0;
+    do {
+      b = encoded.charCodeAt(index++) - 63;
+      result |= (b & 0x1f) << shift;
+      shift += 5;
+    } while (b >= 0x20);
+    let dlat = ((result & 1) ? ~(result >> 1) : (result >> 1));
+    lat += dlat;
+
+    shift = 0;
+    result = 0;
+    do {
+      b = encoded.charCodeAt(index++) - 63;
+      result |= (b & 0x1f) << shift;
+      shift += 5;
+    } while (b >= 0x20);
+    let dlng = ((result & 1) ? ~(result >> 1) : (result >> 1));
+    lng += dlng;
+
+    points.push({
+      latitude: lat / 1e5,
+      longitude: lng / 1e5,
+    });
+  }
+  return points;
+}
+
+/**
  * Project point P(px, py) onto line segment A(ax, ay) -> B(bx, by)
  */
 function projectPointOnSegment(px, py, ax, ay, bx, by) {
@@ -28,7 +65,6 @@ function projectPointOnSegment(px, py, ax, ay, bx, by) {
     return { lat: ax, lng: ay, distMeters: getHaversineDistanceMeters(px, py, ax, ay) };
   }
 
-  // Parameter t for projection line
   const t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy)));
   const projLat = ax + t * dx;
   const projLng = ay + t * dy;
@@ -38,15 +74,107 @@ function projectPointOnSegment(px, py, ax, ay, bx, by) {
 }
 
 /**
- * Fetch road route between coordinates via OSRM Driving Engine
- * @param {Array<{latitude: number, longitude: number}>} points List of waypoints [origin, ...waypoints, destination]
+ * Request road route from Google Routes API v2
+ * @param {Array<{latitude: number, longitude: number}>} points Waypoints [origin, destination]
+ */
+async function getGoogleRoutesApiRoute(points) {
+  const apiKey = process.env.GOOGLE_ROUTES_API_KEY || process.env.GOOGLE_MAPS_API_KEY;
+
+  if (!apiKey) {
+    console.log('[ROUTES API] No GOOGLE_ROUTES_API_KEY found in env. Using OSRM road engine fallback.');
+    return getRoadRoute(points);
+  }
+
+  if (!points || points.length < 2) {
+    throw new Error('At least 2 points are required for route calculation');
+  }
+
+  const origin = points[0];
+  const destination = points[points.length - 1];
+
+  const url = 'https://routes.googleapis.com/directions/v2:computeRoutes';
+
+  const requestBody = {
+    origin: {
+      location: {
+        latLng: {
+          latitude: Number(origin.latitude),
+          longitude: Number(origin.longitude)
+        }
+      }
+    },
+    destination: {
+      location: {
+        latLng: {
+          latitude: Number(destination.latitude),
+          longitude: Number(destination.longitude)
+        }
+      }
+    },
+    travelMode: 'TWO_WHEELER',
+    routingPreference: 'TRAFFIC_AWARE',
+    computeAlternativeRoutes: false,
+    languageCode: 'en-US',
+    units: 'METRIC'
+  };
+
+  try {
+    const response = await axios.post(url, requestBody, {
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': apiKey,
+        'X-Goog-FieldMask': 'routes.duration,routes.distanceMeters,routes.polyline.encodedPolyline,routes.travelAdvisory'
+      },
+      timeout: 8000
+    });
+
+    if (response.data && response.data.routes && response.data.routes[0]) {
+      const route = response.data.routes[0];
+      const encodedPolyline = route.polyline?.encodedPolyline || '';
+      const routePoints = decodePolyline(encodedPolyline);
+
+      const distanceMeters = route.distanceMeters || 0;
+      const distanceKm = Math.round((distanceMeters / 1000) * 10) / 10;
+
+      // Duration format in Google Routes API is string e.g. "900s"
+      const durationSeconds = parseInt(route.duration || '0', 10) || 0;
+      const durationMins = Math.max(1, Math.round(durationSeconds / 60));
+
+      let trafficStatus = 'NORMAL';
+      if (route.travelAdvisory && route.travelAdvisory.speedReadingIntervals) {
+        trafficStatus = 'MODERATE';
+      }
+
+      console.log(`[GOOGLE ROUTES API SUCCESS] Distance: ${distanceKm}km, Duration: ${durationMins}m, Traffic: ${trafficStatus}`);
+
+      return {
+        success: true,
+        source: 'GOOGLE_ROUTES_API',
+        points: routePoints,
+        distanceKm,
+        durationMins,
+        trafficStatus,
+        distanceMeters,
+        durationSeconds
+      };
+    }
+  } catch (err) {
+    console.warn('[ROUTES API ERROR] Primary Google Routes API query notice:', err.response?.data || err.message);
+  }
+
+  // Fallback to OSRM road engine if Google Routes API request fails
+  return getRoadRoute(points);
+}
+
+/**
+ * Fetch road route between coordinates via OSRM Driving Engine (Fallback)
+ * @param {Array<{latitude: number, longitude: number}>} points List of waypoints
  */
 async function getRoadRoute(points) {
   if (!points || points.length < 2) {
     throw new Error('At least 2 points are required to calculate a road route');
   }
 
-  // Format OSRM coordinate string: "lng1,lat1;lng2,lat2;..."
   const coordinatesString = points
     .map(p => `${Number(p.longitude).toFixed(6)},${Number(p.latitude).toFixed(6)}`)
     .join(';');
@@ -57,7 +185,7 @@ async function getRoadRoute(points) {
     const response = await axios.get(osrmUrl, { timeout: 8000 });
     if (response.data && response.data.code === 'Ok' && response.data.routes?.[0]) {
       const route = response.data.routes[0];
-      const coords = route.geometry.coordinates; // [[lng, lat], ...]
+      const coords = route.geometry.coordinates;
 
       const routePoints = coords.map(c => ({
         latitude: c[1],
@@ -73,15 +201,15 @@ async function getRoadRoute(points) {
         points: routePoints,
         distanceKm,
         durationMins,
+        trafficStatus: 'NORMAL',
         distanceMeters: route.distance,
         durationSeconds: route.duration
       };
     }
   } catch (err) {
-    console.warn('[ROUTING] OSRM primary query notice:', err.message);
+    console.warn('[ROUTING] OSRM query notice:', err.message);
   }
 
-  // Secondary Fallback: Generate dense road-interpolated points if OSRM service is unreachable
   return generateInterpolatedRoadRoute(points);
 }
 
@@ -98,7 +226,7 @@ function generateInterpolatedRoadRoute(points) {
     const segDist = getHaversineDistanceMeters(p1.latitude, p1.longitude, p2.latitude, p2.longitude);
     totalDistanceMeters += segDist;
 
-    const numSteps = Math.max(5, Math.floor(segDist / 50)); // Step every ~50 meters
+    const numSteps = Math.max(5, Math.floor(segDist / 50));
     for (let s = 0; s < numSteps; s++) {
       const ratio = s / numSteps;
       resultPoints.push({
@@ -110,7 +238,7 @@ function generateInterpolatedRoadRoute(points) {
   resultPoints.push(points[points.length - 1]);
 
   const distanceKm = Math.round((totalDistanceMeters / 1000) * 10) / 10;
-  const durationMins = Math.max(1, Math.round(distanceKm * 3)); // ~20 km/h avg speed
+  const durationMins = Math.max(1, Math.round(distanceKm * 3));
 
   return {
     success: true,
@@ -118,21 +246,18 @@ function generateInterpolatedRoadRoute(points) {
     points: resultPoints,
     distanceKm,
     durationMins,
+    trafficStatus: 'NORMAL',
     distanceMeters: totalDistanceMeters,
     durationSeconds: durationMins * 60
   };
 }
 
 /**
- * Snap GPS position to nearest road segment on route
- * @param {number} lat Current GPS Latitude
- * @param {number} lng Current GPS Longitude
- * @param {Array<{latitude: number, longitude: number}>} routePoints Active route polyline points
- * @param {number} thresholdMeters Threshold distance for snapping (default 50m)
+ * Snap GPS position to nearest road segment on route & detect off-route
  */
 function snapGpsToRoad(lat, lng, routePoints, thresholdMeters = 50) {
   if (!routePoints || routePoints.length === 0) {
-    return { snappedLat: lat, snappedLng: lng, isSnapped: false, distanceToRouteMeters: 0 };
+    return { snappedLat: lat, snappedLng: lng, isSnapped: false, distanceToRouteMeters: 0, isOffRoute: false };
   }
 
   let minDistanceMeters = Infinity;
@@ -165,6 +290,8 @@ function snapGpsToRoad(lat, lng, routePoints, thresholdMeters = 50) {
 
 module.exports = {
   getHaversineDistanceMeters,
+  decodePolyline,
+  getGoogleRoutesApiRoute,
   getRoadRoute,
   snapGpsToRoad
 };

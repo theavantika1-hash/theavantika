@@ -307,7 +307,7 @@ const getOrderRouteInfo = async (orderId, currentRiderLat, currentRiderLng) => {
         ];
     }
 
-    const routeData = await routingService.getRoadRoute(waypoints);
+    const routeData = await routingService.getGoogleRoutesApiRoute(waypoints);
     const snapping = routingService.snapGpsToRoad(riderLat, riderLng, routeData.points, 50);
 
     return {
@@ -328,6 +328,7 @@ const getOrderRouteInfo = async (orderId, currentRiderLat, currentRiderLng) => {
         routePoints: routeData.points,
         distanceKm: routeData.distanceKm,
         durationMins: routeData.durationMins,
+        trafficStatus: routeData.trafficStatus || 'NORMAL',
         routingSource: routeData.source
     };
 };
