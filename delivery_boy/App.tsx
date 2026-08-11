@@ -57,10 +57,11 @@ export type ScreenType =
   | 'transactions';
 
 function App() {
+  const [selectedOrderForDetail, setSelectedOrderForDetail] = useState<any>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [currentScreen, setCurrentScreen] = useState<ScreenType>('login');
   const [userEmail, setUserEmail] = useState('');
-  const [userLocation, setUserLocation] = useState('#321, Phase-II, UE, Ludhiana, India...');
+  const [userLocation, setUserLocation] = useState('Telco Circle, Bhagwanpura, Alwar, Rajasthan 301001');
   const [activeLanguage, setActiveLanguage] = useState<LanguageItem>({
     id: 'en',
     name: 'English',
@@ -190,6 +191,7 @@ function App() {
       ) : currentScreen === 'order_detail' ? (
         <OrderDetailScreen
           userEmail={userEmail}
+          selectedOrder={selectedOrderForDetail}
           onBack={() => setCurrentScreen('orders')}
           onNavigateToTracking={() => setCurrentScreen('order_tracking')}
         />
@@ -210,7 +212,10 @@ function App() {
             else if (tab === 'deposit') setCurrentScreen('deposit');
           }}
           onNavigateToMap={() => setCurrentScreen('map')}
-          onNavigateToDetail={() => setCurrentScreen('order_detail')}
+          onNavigateToDetail={(order) => {
+            if (order) setSelectedOrderForDetail(order);
+            setCurrentScreen('order_detail');
+          }}
           onNavigateToNotifications={() => setCurrentScreen('notifications')}
         />
 

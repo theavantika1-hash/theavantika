@@ -361,9 +361,24 @@ function App() {
 
     const activeAddrObj = savedAddresses.find(a => (a.id === selectedAddressId || a._id === selectedAddressId))
     const isGuestFlow = diningMode === 'dine-in' || diningMode === 'pickup'
-    const custName = isGuestFlow ? (guestName || 'Valued Patron') : (loggedInUser?.name || loggedInUser?.user_name || profileName || activeAddrObj?.name || 'Valued Patron')
-    const custPhone = isGuestFlow ? (guestPhone || '9876543210') : (loggedInUser?.phone || loggedInUser?.phone_number || profileMobile || activeAddrObj?.phone || '9876543210')
-    const custEmail = isGuestFlow ? (guestEmail || '') : (loggedInUser?.email || profileEmail || activeAddrObj?.email || '')
+    
+    let savedUserObj = null
+    try {
+      const raw = localStorage.getItem('avantika_user')
+      if (raw) savedUserObj = JSON.parse(raw)
+    } catch (e) {}
+
+    const custName = isGuestFlow 
+      ? (guestName || 'Valued Patron') 
+      : (guestName || profileName || savedUserObj?.name || savedUserObj?.user_name || (typeof loggedInUser === 'string' && loggedInUser ? loggedInUser : '') || activeAddrObj?.name || 'Valued Patron')
+
+    const custPhone = isGuestFlow 
+      ? (guestPhone || '9876543210') 
+      : (guestPhone || profileMobile || savedUserObj?.phone || savedUserObj?.phone_number || activeAddrObj?.phone || '9876543210')
+
+    const custEmail = isGuestFlow 
+      ? (guestEmail || '') 
+      : (guestEmail || profileEmail || savedUserObj?.email || activeAddrObj?.email || '')
 
     const orderPayload = {
       orderId: orderIdVal,

@@ -20,6 +20,7 @@ interface OrderDetailScreenProps {
   onBack?: () => void;
   onNavigateToTracking?: () => void;
   userEmail?: string;
+  selectedOrder?: any;
   riderName?: string;
   orderNumber?: string;
   customerName?: string;
@@ -40,17 +41,18 @@ export function OrderDetailScreen({
   onBack,
   onNavigateToTracking,
   userEmail,
+  selectedOrder,
   riderName,
-  orderNumber = 'Order #123546789',
-  customerName = 'John Doe',
-  customerAddress = '#421, Phase-II, UE, Ludhiana, India...',
-  amount = '$150.50',
-  paymentMethod = 'COD',
-  restaurantName = 'Testing POS Restaurant',
-  restaurantAddress = 'GT Road, Ludhiana.',
-  deliveryAddress = '#744, UE, Phase-II, Ludhiana',
-  itemsSummary = 'French Fries(1), Chicken Biryani(2), Smoky Chicken BBQ Burger(1)',
-  notes = 'Prefer Salted, Less Spicy, without Gravy',
+  orderNumber = 'AV-10012345',
+  customerName = 'Valued Customer',
+  customerAddress = 'Alwar, Rajasthan',
+  amount = '₹450',
+  paymentMethod = 'UPI',
+  restaurantName = 'Avantika Restaurant',
+  restaurantAddress = 'SH 25, near Telco circle, Bhagwanpura, Alwar',
+  deliveryAddress = 'Alwar, Rajasthan',
+  itemsSummary = 'Special Paneer Tikka (1), Butter Naan (2)',
+  notes = 'No special instructions',
   totalDistance = '3.5',
   timeRemaining = '20',
   distanceAway = '2.12',
@@ -59,6 +61,17 @@ export function OrderDetailScreen({
   const [buttonState, setButtonState] = useState<'arrive' | 'picked_up' | 'delivered'>('arrive');
   const [isCancelModalVisible, setIsCancelModalVisible] = useState(false);
   const [sheetMode, setSheetMode] = useState<'minimized' | 'standard' | 'expanded'>('standard');
+
+  const effectiveOrderNo = selectedOrder?.orderNo || selectedOrder?.orderId || orderNumber;
+  const effectiveCustomerName = selectedOrder?.deliveryName || selectedOrder?.customerName || customerName;
+  const effectiveCustomerAddress = selectedOrder?.deliveryAddress || customerAddress;
+  const effectiveAmount = selectedOrder?.amount || (selectedOrder?.totalAmount ? `₹${selectedOrder.totalAmount}` : amount);
+  const effectivePaymentMethod = selectedOrder?.paymentType || selectedOrder?.paymentMethod || paymentMethod;
+  const effectiveRestaurantName = selectedOrder?.restaurantName || restaurantName;
+  const effectiveRestaurantAddress = selectedOrder?.restaurantAddress || restaurantAddress;
+  const effectiveDeliveryAddress = selectedOrder?.deliveryAddress || deliveryAddress;
+  const effectiveItemsSummary = selectedOrder?.itemsText || (Array.isArray(selectedOrder?.orderedItems) ? selectedOrder.orderedItems.map((i: any) => `${i.name}(${i.quantity || 1})`).join(', ') : itemsSummary);
+  const effectiveNotes = selectedOrder?.notes || selectedOrder?.specialInstructions || notes;
 
   // Real Delivery Boy Rider Name State
   const [realRiderName, setRealRiderName] = useState<string>(riderName || 'Delivery Executive (You)');
@@ -80,10 +93,8 @@ export function OrderDetailScreen({
       onMoveShouldSetPanResponder: () => true,
       onPanResponderRelease: (_, gestureState) => {
         if (gestureState.dy > 40) {
-          // Dragged DOWN -> Minimize sheet to reveal complete map view
           setSheetMode(prev => (prev === 'expanded' ? 'standard' : 'minimized'));
         } else if (gestureState.dy < -40) {
-          // Dragged UP -> Expand sheet to show details
           setSheetMode(prev => (prev === 'minimized' ? 'standard' : 'expanded'));
         }
       },
@@ -96,22 +107,22 @@ export function OrderDetailScreen({
   );
 
   const handleArrivePress = async () => {
-    const cleanId = (orderNumber || '').replace(/^Order\s*#/i, '').trim();
+    const cleanId = (effectiveOrderNo || '').replace(/^Order\s*/i, '').replace(/^#/i, '').trim();
     if (buttonState === 'arrive') {
       setButtonState('picked_up');
       try {
-        await deliveryBoyApi.updateOrderStatus(cleanId, 'ARRIVED_AT_RESTAURANT');
+        await deliveryBoyApi.updateOrderStatus(cleanId, 'ARRIVED_AT_RESTAURANT', userEmail);
       } catch (e) {}
       Alert.alert('Arrived at Restaurant', 'Status updated to Arrived at Restaurant.');
     } else if (buttonState === 'picked_up') {
       setButtonState('delivered');
       try {
-        await deliveryBoyApi.updateOrderStatus(cleanId, 'PICKED_UP');
+        await deliveryBoyApi.updateOrderStatus(cleanId, 'PICKED_UP', userEmail);
       } catch (e) {}
       Alert.alert('Order Picked Up', 'Destination updated to Customer address!');
     } else {
       try {
-        await deliveryBoyApi.updateOrderStatus(cleanId, 'DELIVERED');
+        await deliveryBoyApi.updateOrderStatus(cleanId, 'DELIVERED', userEmail);
       } catch (e) {}
       Alert.alert('Order Delivered', 'Order successfully completed!');
       if (onBack) onBack();
@@ -153,7 +164,7 @@ export function OrderDetailScreen({
           <Text style={detailStyles.headerBackArrow}>←</Text>
         </TouchableOpacity>
 
-        <Text style={detailStyles.headerTitleText}>{orderNumber}</Text>
+        <Text style={detailStyles.headerTitleText}>{effectiveOrderNo}</Text>
 
         <TouchableOpacity activeOpacity={0.7} onPress={() => setSheetMode(prev => prev === 'expanded' ? 'standard' : 'expanded')}>
           <Text style={detailStyles.headerMoreInfoText}>
@@ -166,13 +177,13 @@ export function OrderDetailScreen({
         {/* 2. DYNAMIC MAP VIEW */}
         <View style={StyleSheet.absoluteFill}>
           <OrderMapView
-            orderId={(orderNumber || '').replace(/^Order\s*#/i, '').trim()}
-            orderNumber={orderNumber}
+            orderId={(effectiveOrderNo || '').replace(/^Order\s*/i, '').replace(/^#/i, '').trim()}
+            orderNumber={effectiveOrderNo}
             riderName={realRiderName}
-            customerName={customerName}
-            restaurantName={restaurantName}
-            restaurantAddress={restaurantAddress}
-            deliveryAddress={deliveryAddress}
+            customerName={effectiveCustomerName}
+            restaurantName={effectiveRestaurantName}
+            restaurantAddress={effectiveRestaurantAddress}
+            deliveryAddress={effectiveDeliveryAddress}
             totalDistance={`${totalDistance} km`}
             timeRemaining={`${timeRemaining} mins`}
             orderStatus={buttonState === 'arrive' ? 'Head to Restaurant' : buttonState === 'picked_up' ? 'Order Picked Up' : 'Delivered'}
@@ -222,17 +233,16 @@ export function OrderDetailScreen({
                 <View style={detailStyles.customerPriceRow}>
                   <View style={{ flex: 1, marginRight: 12 }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                      <Text style={detailStyles.customerNameText}>{customerName}</Text>
-                      <Text style={detailStyles.customerSubId}> #12345687</Text>
+                      <Text style={detailStyles.customerNameText}>{effectiveCustomerName}</Text>
                     </View>
                     <Text style={detailStyles.customerAddressText} numberOfLines={1}>
-                      {customerAddress}
+                      {effectiveCustomerAddress}
                     </Text>
                   </View>
 
                   <View style={{ alignItems: 'flex-end' }}>
-                    <Text style={detailStyles.amountText}>{amount}</Text>
-                    <Text style={detailStyles.codText}>{paymentMethod}</Text>
+                    <Text style={detailStyles.amountText}>{effectiveAmount}</Text>
+                    <Text style={detailStyles.codText}>{effectivePaymentMethod}</Text>
                   </View>
                 </View>
 
@@ -246,8 +256,8 @@ export function OrderDetailScreen({
                       <Text style={{ fontSize: 18 }}>📍</Text>
                     </View>
                     <View style={detailStyles.routeTextCol}>
-                      <Text style={detailStyles.routeTitle}>{restaurantName}</Text>
-                      <Text style={detailStyles.routeSubtext}>{restaurantAddress}</Text>
+                      <Text style={detailStyles.routeTitle}>{effectiveRestaurantName}</Text>
+                      <Text style={detailStyles.routeSubtext}>{effectiveRestaurantAddress}</Text>
                     </View>
                   </View>
 
@@ -264,8 +274,8 @@ export function OrderDetailScreen({
                       <Text style={{ fontSize: 18 }}>📍</Text>
                     </View>
                     <View style={detailStyles.routeTextCol}>
-                      <Text style={detailStyles.routeTitle}>Home</Text>
-                      <Text style={detailStyles.routeSubtext}>{deliveryAddress}</Text>
+                      <Text style={detailStyles.routeTitle}>Destination (Customer)</Text>
+                      <Text style={detailStyles.routeSubtext}>{effectiveDeliveryAddress}</Text>
                     </View>
                   </View>
 
@@ -275,7 +285,7 @@ export function OrderDetailScreen({
                       <Text style={{ fontSize: 18 }}>🍽️</Text>
                     </View>
                     <View style={detailStyles.routeTextCol}>
-                      <Text style={detailStyles.itemsSummaryText}>{itemsSummary}</Text>
+                      <Text style={detailStyles.itemsSummaryText}>{effectiveItemsSummary}</Text>
                     </View>
                   </View>
                 </View>
@@ -285,12 +295,12 @@ export function OrderDetailScreen({
                 {/* Notes & Status Section */}
                 <View style={detailStyles.notesStatusRow}>
                   <View style={{ flex: 1, marginRight: 12 }}>
-                    <Text style={detailStyles.notesTitle}>Notes</Text>
-                    <Text style={detailStyles.notesText}>{notes}</Text>
+                    <Text style={detailStyles.notesTitle}>Notes / Cooking Instructions</Text>
+                    <Text style={detailStyles.notesText}>{effectiveNotes}</Text>
                   </View>
 
                   <View style={detailStyles.pickupReadyBadge}>
-                    <Text style={detailStyles.pickupReadyText}>Pickup Ready</Text>
+                    <Text style={detailStyles.pickupReadyText}>Active Order</Text>
                   </View>
                 </View>
               </>
@@ -298,7 +308,7 @@ export function OrderDetailScreen({
               /* --- FULL EXPANDED POPUP CONTENT (ORDER SUMMARY) --- */
               <>
                 {/* ORDER DETAILS SECTION */}
-                <Text style={detailStyles.sectionTitleRed}>Order Details</Text>
+                <Text style={detailStyles.sectionTitleRed}>Order Details ({effectiveOrderNo})</Text>
 
                 <View style={detailStyles.expandedCardInner}>
                   {/* Restaurant Row */}
@@ -307,10 +317,10 @@ export function OrderDetailScreen({
                       <Text style={{ fontSize: 18 }}>📍</Text>
                     </View>
                     <View style={detailStyles.routeTextCol}>
-                      <Text style={detailStyles.routeTitle}>{restaurantName}</Text>
-                      <Text style={detailStyles.routeSubtext}>Location, GT Road, Punjab</Text>
+                      <Text style={detailStyles.routeTitle}>{effectiveRestaurantName}</Text>
+                      <Text style={detailStyles.routeSubtext}>{effectiveRestaurantAddress}</Text>
                     </View>
-                    <Text style={detailStyles.expandedTopPriceText}>$155.00</Text>
+                    <Text style={detailStyles.expandedTopPriceText}>{effectiveAmount}</Text>
                   </View>
 
                   {/* Dotted Vertical Connector */}
@@ -326,8 +336,8 @@ export function OrderDetailScreen({
                       <Text style={{ fontSize: 18 }}>📍</Text>
                     </View>
                     <View style={detailStyles.routeTextCol}>
-                      <Text style={detailStyles.routeTitle}>Home</Text>
-                      <Text style={detailStyles.routeSubtext}>{deliveryAddress}</Text>
+                      <Text style={detailStyles.routeTitle}>Customer: {effectiveCustomerName}</Text>
+                      <Text style={detailStyles.routeSubtext}>{effectiveDeliveryAddress}</Text>
                     </View>
                     <Text style={detailStyles.expandedTopDistanceText}>3.5km</Text>
                   </View>
@@ -338,7 +348,7 @@ export function OrderDetailScreen({
                       <Text style={{ fontSize: 18 }}>🍽️</Text>
                     </View>
                     <View style={detailStyles.routeTextCol}>
-                      <Text style={detailStyles.itemsSummaryText}>{itemsSummary}</Text>
+                      <Text style={detailStyles.itemsSummaryText}>{effectiveItemsSummary}</Text>
                     </View>
                   </View>
 
@@ -348,11 +358,13 @@ export function OrderDetailScreen({
                   <View style={detailStyles.gridTwoColRow}>
                     <View style={{ flex: 1 }}>
                       <Text style={detailStyles.gridLabelText}>Payment Mode</Text>
-                      <Text style={detailStyles.gridValueCodText}>COD</Text>
+                      <Text style={detailStyles.gridValueCodText}>{effectivePaymentMethod}</Text>
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={detailStyles.gridLabelText}>Order Status</Text>
-                      <Text style={detailStyles.gridValueTealText}>Pickup Ready</Text>
+                      <Text style={detailStyles.gridValueTealText}>
+                        {buttonState === 'arrive' ? 'Head to Pickup' : buttonState === 'picked_up' ? 'Picked Up' : 'Delivered'}
+                      </Text>
                     </View>
                   </View>
 

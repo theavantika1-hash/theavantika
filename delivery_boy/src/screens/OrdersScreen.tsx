@@ -32,7 +32,7 @@ interface OrdersScreenProps {
   userEmail?: string;
   onNavigateTab: (tab: 'profile' | 'orders' | 'deposit' | 'account') => void;
   onNavigateToMap?: () => void;
-  onNavigateToDetail?: () => void;
+  onNavigateToDetail?: (order?: any) => void;
   onNavigateToNotifications?: () => void;
 }
 
@@ -380,7 +380,7 @@ export function OrdersScreen({
                     </TouchableOpacity>
 
                     <TouchableOpacity
-                      onPress={() => onNavigateToDetail ? onNavigateToDetail() : Alert.alert('Order Details', `Showing details for ${order.orderNo}`)}
+                      onPress={() => onNavigateToDetail ? onNavigateToDetail(order) : Alert.alert('Order Details', `Showing details for ${order.orderNo}`)}
                       activeOpacity={0.7}
                     >
                       <Text style={styles.activeDetailsTextLink}>Details</Text>

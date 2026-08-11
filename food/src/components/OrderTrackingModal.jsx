@@ -476,7 +476,7 @@ export const OrderTrackingModal = ({ order, onClose }) => {
               {restaurantName}
             </h4>
             <span style={{ fontSize: '11px', color: '#64748b', fontWeight: '600' }}>
-              Order #{orderId.slice(-6)} • {itemCount} Items
+              Order #{orderId} • {itemCount} Items
             </span>
           </div>
 

@@ -642,20 +642,27 @@ const getAssignedOrders = async (identifier) => {
 
   const mappedOrders = rawOrders.map(ord => {
     const isNew = ord.orderStatus === 'Assigned' || ord.orderStatus === 'Pending Accept';
-    const itemsSummary = (ord.orderedItems || ord.items || []).map(i => `${i.name}(${i.quantity || 1})`).join(', ') || 'Deluxe Thali Combo (1), Mango Lassi (2)';
+    const itemsList = ord.orderedItems || ord.items || [];
+    const itemsSummary = itemsList.map(i => `${i.name}(${i.quantity || 1})`).join(', ') || 'Delicious Food Items';
 
     return {
       id: ord._id.toString(),
+      orderId: ord.orderId,
       orderNo: `#${ord.orderId || ord._id.toString().slice(-8)}`,
-      restaurantName: 'Avantika Central Kitchen',
-      restaurantAddress: 'Model Town, Ludhiana.',
+      customerName: ord.customerName || 'Valued Customer',
+      phoneNumber: ord.phoneNumber || '',
+      customerEmail: ord.customerEmail || '',
+      restaurantName: 'Avantika Restaurant',
+      restaurantAddress: 'SH 25, near Telco circle, Bhagwanpura, Alwar, Rajasthan 301001',
       deliveryName: ord.customerName || 'Customer Address',
-      deliveryAddress: typeof ord.deliveryAddress === 'string' ? ord.deliveryAddress : (ord.deliveryAddress?.address || 'Suite 402, Business Tower, Ludhiana'),
+      deliveryAddress: typeof ord.deliveryAddress === 'string' ? ord.deliveryAddress : (ord.deliveryAddress?.address || 'Customer Delivery Address'),
       distance: '3.5km',
-      amount: `$${ord.totalAmount || 220}`,
+      amount: `₹${ord.totalAmount || 0}`,
       paymentType: ord.paymentMethod || 'PREPAID',
       itemsText: itemsSummary,
-      receivedTime: ord.createdAt ? new Date(ord.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '01:25 PM',
+      orderedItems: itemsList,
+      notes: ord.specialInstructions || '',
+      receivedTime: ord.createdAt ? new Date(ord.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Just now',
       deliveryTime: '30 mins left',
       status: isNew ? 'new' : 'active'
     };
@@ -664,9 +671,11 @@ const getAssignedOrders = async (identifier) => {
   // Fetch specific currentOrderId document from MongoDB if deliveryBoy.currentOrderId exists
   let currentOrder = null;
   if (deliveryBoy.currentOrderId) {
+    const cleanCurId = (deliveryBoy.currentOrderId || '').replace(/^Order\s*/i, '').replace(/^#/i, '').trim();
     const currentOrderDoc = await Order.findOne({
       $or: [
-        { _id: mongoose.Types.ObjectId.isValid(deliveryBoy.currentOrderId) ? deliveryBoy.currentOrderId : null },
+        { _id: mongoose.Types.ObjectId.isValid(cleanCurId) ? cleanCurId : null },
+        { orderId: cleanCurId },
         { orderId: deliveryBoy.currentOrderId }
       ]
     });
@@ -698,22 +707,37 @@ const getAssignedOrders = async (identifier) => {
   };
 };
 
-
-
 /**
- * Update Order Status (Accept or Decline)
+ * Update Order Status (Accept or Decline or Progress)
  */
 const updateOrderStatus = async (orderId, newStatus, deliveryBoyEmail) => {
-  if (mongoose.Types.ObjectId.isValid(orderId)) {
-    await Order.findByIdAndUpdate(orderId, { orderStatus: newStatus });
+  const cleanId = (orderId || '').replace(/^Order\s*/i, '').replace(/^#/i, '').trim();
+
+  let updatedOrder;
+  if (mongoose.Types.ObjectId.isValid(cleanId)) {
+    updatedOrder = await Order.findByIdAndUpdate(cleanId, { orderStatus: newStatus }, { new: true });
   } else {
-    await Order.findOneAndUpdate({ orderId: orderId }, { orderStatus: newStatus });
+    updatedOrder = await Order.findOneAndUpdate({ orderId: cleanId }, { orderStatus: newStatus }, { new: true });
   }
 
-  if (newStatus === 'Declined' && deliveryBoyEmail) {
+  if (!updatedOrder) {
+    updatedOrder = await Order.findOneAndUpdate(
+      { $or: [{ orderId: orderId }, { orderId: `#${cleanId}` }, { orderId: `AV-${cleanId}` }] },
+      { orderStatus: newStatus },
+      { new: true }
+    );
+  }
+
+  if (deliveryBoyEmail) {
     const deliveryBoy = await DeliveryBoy.findOne({ email: deliveryBoyEmail.trim().toLowerCase() });
-    if (deliveryBoy && Array.isArray(deliveryBoy.order_ids)) {
-      deliveryBoy.order_ids = deliveryBoy.order_ids.filter(id => id.toString() !== orderId);
+    if (deliveryBoy) {
+      if (newStatus === 'Declined' && Array.isArray(deliveryBoy.order_ids)) {
+        deliveryBoy.order_ids = deliveryBoy.order_ids.filter(id => id.toString() !== cleanId && id.toString() !== orderId);
+      }
+      const isFinished = ['DELIVERED', 'Delivered', 'Cancelled', 'Declined', 'Served'].includes(newStatus);
+      if (isFinished && deliveryBoy.currentOrderId && (deliveryBoy.currentOrderId === cleanId || deliveryBoy.currentOrderId === orderId)) {
+        deliveryBoy.currentOrderId = null;
+      }
       await deliveryBoy.save();
     }
   }
